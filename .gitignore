@@ -1,0 +1,38 @@
+*.iml
+.gradle
+.kotlin
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+.env
+debug.keystore
+
+# Build outputs
+/app/build/
+
+# Temp scripts
+fix_all_colors*.ps1
+
+# Keystore files
+*.keystore
+*.keystore.base64
+
+# IDE
+.idea/
+
+.antigravity/
+.build-outputs/
+.vscode/
+.env.example
+metadata.json
+fix_colors_main.ps1
