@@ -77,7 +77,7 @@
 
 | Feature | Description |
 |:-------:|:-----------|
-| 🏘️ **Spaces (Groups)** | Create shared expense groups — Trips, Flatmates, Office Lunches |
+| 🏘️ **Spaces (Groups)** | Create shared expense groups (Trips, Flatmates, Flatmates, etc.) with scoped expense creation via an embedded FAB |
 | ⚖️ **Smart Splitting** | Split equally, by percentage, or custom amounts per member |
 | 💹 **Balance Engine** | Real-time net balance calculations — who owes whom at a glance |
 | 👥 **Multi-Profile** | Switch between multiple user profiles seamlessly |
@@ -121,8 +121,8 @@
 |:----------:|:------------|
 | 🏠 **EMI Calculator** | Monthly loan installment for home/car loans |
 | 📈 **Interest Calculator** | Simple & Compound interest for savings/debt |
-| 🧾 **GST Calculator** | Add or extract tax % from any bill |
-| 💾 **Save as Expense** | One tap to push any calculated amount into Add Expense |
+| 🧾 **GST Calculator** | Add or extract tax % from any bill with fully aligned, auto-wrapping layout |
+| 💾 **Save as Expense** | One tap to push any calculated amount into Add Expense with an interactive Space Selector dropdown |
 
 <br/>
 
