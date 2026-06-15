@@ -51,6 +51,7 @@ fun BudgetManagerScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = { Text("Budget Manager", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold) },
@@ -157,7 +158,7 @@ fun BudgetManagerScreen(
                         OutlinedTextField(
                             value = limitAmountStr,
                             onValueChange = { limitAmountStr = it },
-                            label = { Text("Monthly Limit Amount ($)") },
+                            label = { Text("Monthly Limit Amount (₹)") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier.fillMaxWidth().testTag("budget_amount_input"),
                             colors = OutlinedTextFieldDefaults.colors(
@@ -290,8 +291,12 @@ fun SubscriptionManagerScreen(
         if (selectedSpaceId == null && spaces.isNotEmpty()) {
             selectedSpaceId = spaces.first().id
         }
-        if (selectedWalletId == null && wallets.isNotEmpty()) {
-            selectedWalletId = wallets.first().id
+        if (wallets.isNotEmpty()) {
+            if (selectedWalletId == null || !wallets.any { it.id == selectedWalletId }) {
+                selectedWalletId = wallets.first().id
+            }
+        } else {
+            selectedWalletId = null
         }
         if (selectedCategory.isEmpty() && categories.isNotEmpty()) {
             selectedCategory = categories.first().name
@@ -307,6 +312,7 @@ fun SubscriptionManagerScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = { Text("Subscription Manager", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold) },
@@ -365,7 +371,7 @@ fun SubscriptionManagerScreen(
                         OutlinedTextField(
                             value = amountStr,
                             onValueChange = { amountStr = it },
-                            label = { Text("Billing Amount ($)") },
+                            label = { Text("Billing Amount (₹)") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier.fillMaxWidth().testTag("sub_amount_input"),
                             colors = OutlinedTextFieldDefaults.colors(

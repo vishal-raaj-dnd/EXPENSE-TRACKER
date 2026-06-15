@@ -8,17 +8,93 @@ import android.graphics.pdf.PdfDocument
 import com.example.data.Expense
 import com.example.data.User
 import com.example.data.Wallet
-import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 object ExportEngine {
 
+    // ========================================================================
+    // LIGHTWEIGHT XLSX WRITER (No Apache POI)
+    // Generates valid .xlsx files using ZipOutputStream + OpenXML inline strings
+    // ========================================================================
+
+    private fun escapeXml(text: String): String =
+        text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            .replace("\"", "&quot;").replace("'", "&apos;")
+
+    private fun buildContentTypesXml(): String = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+</Types>"""
+
+    private fun buildRelsXml(): String = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>"""
+
+    private fun buildWorkbookXml(): String = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+    <sheet name="Ledger" sheetId="1" r:id="rId1"/>
+  </sheets>
+</workbook>"""
+
+    private fun buildWorkbookRelsXml(): String = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+</Relationships>"""
+
+    private fun buildSheetXml(rows: List<List<String>>): String {
+        val sb = StringBuilder()
+        sb.append("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>""")
+        sb.append("""<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">""")
+        sb.append("<sheetData>")
+        rows.forEachIndexed { rowIdx, cells ->
+            sb.append("""<row r="${rowIdx + 1}">""")
+            cells.forEachIndexed { colIdx, cellValue ->
+                val colLetter = ('A' + colIdx)
+                val cellRef = "$colLetter${rowIdx + 1}"
+                // Try to write numbers as numbers, otherwise inline string
+                val numVal = cellValue.toDoubleOrNull()
+                if (numVal != null) {
+                    sb.append("""<c r="$cellRef"><v>$numVal</v></c>""")
+                } else {
+                    sb.append("""<c r="$cellRef" t="inlineStr"><is><t>${escapeXml(cellValue)}</t></is></c>""")
+                }
+            }
+            sb.append("</row>")
+        }
+        sb.append("</sheetData></worksheet>")
+        return sb.toString()
+    }
+
+    private fun writeXlsxFile(context: Context, filename: String, rows: List<List<String>>): File {
+        val file = File(context.cacheDir, filename)
+        ZipOutputStream(FileOutputStream(file)).use { zip ->
+            fun addEntry(name: String, content: String) {
+                zip.putNextEntry(ZipEntry(name))
+                zip.write(content.toByteArray(Charsets.UTF_8))
+                zip.closeEntry()
+            }
+            addEntry("[Content_Types].xml", buildContentTypesXml())
+            addEntry("_rels/.rels", buildRelsXml())
+            addEntry("xl/workbook.xml", buildWorkbookXml())
+            addEntry("xl/_rels/workbook.xml.rels", buildWorkbookRelsXml())
+            addEntry("xl/worksheets/sheet1.xml", buildSheetXml(rows))
+        }
+        return file
+    }
+
     /**
-     * Export Space transactions to XLS format using Apache POI Workbook APIs
+     * Export Space transactions to XLSX format using lightweight ZIP-based writer
      */
     fun exportSpaceToExcel(
         context: Context,
@@ -27,82 +103,43 @@ object ExportEngine {
         members: List<User>,
         wallets: List<Wallet>
     ): File {
-        val workbook = XSSFWorkbook()
-        val sheet = workbook.createSheet("Ledger")
-
-        // Styling
-        val headerFont = workbook.createFont().apply {
-            bold = true
-            color = org.apache.poi.ss.usermodel.IndexedColors.WHITE.getIndex()
-            fontHeightInPoints = 12
-        }
-
-        val headerStyle = workbook.createCellStyle().apply {
-            setFillForegroundColor(org.apache.poi.ss.usermodel.IndexedColors.DARK_BLUE.getIndex())
-            setFillPattern(org.apache.poi.ss.usermodel.FillPatternType.SOLID_FOREGROUND)
-            setFont(headerFont)
-            alignment = org.apache.poi.ss.usermodel.HorizontalAlignment.CENTER
-        }
-
-        // Title Block
-        val titleRow = sheet.createRow(0)
-        titleRow.createCell(0).apply {
-            setCellValue("TRANSACTION LEDGER OF SPACE: ${spaceName.uppercase()}")
-        }
-
-        // Headers
-        val headers = listOf("Date", "Category", "Description", "Paid By", "Amount ($)", "Funding Wallet")
-        val headerRow = sheet.createRow(2)
-        headers.forEachIndexed { index, headerText ->
-            headerRow.createCell(index).apply {
-                setCellValue(headerText)
-                cellStyle = headerStyle
-            }
-        }
-
         val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
-        var rowIdx = 3
+        val rows = mutableListOf<List<String>>()
+
+        // Title row
+        rows.add(listOf("TRANSACTION LEDGER OF SPACE: ${spaceName.uppercase()}"))
+        rows.add(emptyList()) // blank row
+
+        // Header row
+        rows.add(listOf("Date", "Category", "Description", "Paid By", "Amount (₹)", "Funding Wallet"))
+
         var totalAmount = 0.0
-
         expenses.forEach { exp ->
-            val row = sheet.createRow(rowIdx++)
             val payerName = members.find { it.id == exp.paidById }?.name ?: "Unknown"
-            val walletName = wallets.find { w -> w.id == exp.walletId }?.name ?: "Wallet ${exp.walletId}"
-
-            row.createCell(0).setCellValue(sdf.format(Date(exp.date)))
-            row.createCell(1).setCellValue(exp.category)
-            row.createCell(2).setCellValue(exp.description)
-            row.createCell(3).setCellValue(payerName)
-            row.createCell(4).setCellValue(exp.amount)
-            row.createCell(5).setCellValue(walletName)
-
+            val walletName = wallets.find { it.id == exp.walletId }?.name ?: "Wallet ${exp.walletId}"
+            rows.add(listOf(
+                sdf.format(Date(exp.date)),
+                exp.category,
+                exp.description,
+                payerName,
+                exp.amount.toString(),
+                walletName
+            ))
             totalAmount += exp.amount
         }
 
-        // Summary Row
-        val summaryRow = sheet.createRow(rowIdx + 1)
-        summaryRow.createCell(3).setCellValue("TOTAL SPENT:")
-        summaryRow.createCell(4).setCellValue(totalAmount)
+        rows.add(emptyList()) // blank row
+        rows.add(listOf("", "", "", "TOTAL SPENT:", totalAmount.toString()))
 
-        // Autosize columns
-        for (i in 0 until headers.size) {
-            try {
-                sheet.autoSizeColumn(i)
-            } catch (e: Exception) {
-                // Fail-safe logic
-            }
-        }
-
-        val file = File(context.cacheDir, "ledger_${spaceName.replace(" ", "_").lowercase()}_${System.currentTimeMillis()}.xlsx")
-        FileOutputStream(file).use {
-            workbook.write(it)
-        }
-        workbook.close()
-        return file
+        return writeXlsxFile(
+            context,
+            "ledger_${spaceName.replace(" ", "_").lowercase()}_${System.currentTimeMillis()}.xlsx",
+            rows
+        )
     }
 
     /**
-     * Export Wallet ledger as formatted Excel using POI
+     * Export Wallet ledger as formatted XLSX
      */
     fun exportWalletToExcel(
         context: Context,
@@ -110,76 +147,35 @@ object ExportEngine {
         expenses: List<Expense>,
         members: List<User>
     ): File {
-        val workbook = XSSFWorkbook()
-        val sheet = workbook.createSheet("Wallet Ledger")
-
-        // Styling
-        val headerFont = workbook.createFont().apply {
-            bold = true
-            color = org.apache.poi.ss.usermodel.IndexedColors.WHITE.getIndex()
-            fontHeightInPoints = 12
-        }
-
-        val headerStyle = workbook.createCellStyle().apply {
-            setFillForegroundColor(org.apache.poi.ss.usermodel.IndexedColors.SEA_GREEN.getIndex())
-            setFillPattern(org.apache.poi.ss.usermodel.FillPatternType.SOLID_FOREGROUND)
-            setFont(headerFont)
-            alignment = org.apache.poi.ss.usermodel.HorizontalAlignment.CENTER
-        }
-
-        // Title Row
-        val titleRow = sheet.createRow(0)
-        titleRow.createCell(0).setCellValue("LEDGER OF WALLET: ${wallet.name.uppercase()} (${wallet.type})")
-
-        // Headers
-        val headers = listOf("Date", "Category", "Description", "Paid By", "Amount ($)")
-        val headerRow = sheet.createRow(2)
-        headers.forEachIndexed { index, headerText ->
-            headerRow.createCell(index).apply {
-                setCellValue(headerText)
-                cellStyle = headerStyle
-            }
-        }
-
         val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
-        var rowIdx = 3
-        var totalAmount = 0.0
-
         val walletExpenses = expenses.filter { it.walletId == wallet.id }
+        val rows = mutableListOf<List<String>>()
 
+        rows.add(listOf("LEDGER OF WALLET: ${wallet.name.uppercase()} (${wallet.type})"))
+        rows.add(emptyList())
+        rows.add(listOf("Date", "Category", "Description", "Paid By", "Amount (₹)"))
+
+        var totalAmount = 0.0
         walletExpenses.forEach { exp ->
-            val row = sheet.createRow(rowIdx++)
             val payerName = members.find { it.id == exp.paidById }?.name ?: "Unknown"
-
-            row.createCell(0).setCellValue(sdf.format(Date(exp.date)))
-            row.createCell(1).setCellValue(exp.category)
-            row.createCell(2).setCellValue(exp.description)
-            row.createCell(3).setCellValue(payerName)
-            row.createCell(4).setCellValue(exp.amount)
-
+            rows.add(listOf(
+                sdf.format(Date(exp.date)),
+                exp.category,
+                exp.description,
+                payerName,
+                exp.amount.toString()
+            ))
             totalAmount += exp.amount
         }
 
-        // Summary Row
-        val summaryRow = sheet.createRow(rowIdx + 1)
-        summaryRow.createCell(3).setCellValue("TOTAL FUNDED:")
-        summaryRow.createCell(4).setCellValue(totalAmount)
+        rows.add(emptyList())
+        rows.add(listOf("", "", "", "TOTAL FUNDED:", totalAmount.toString()))
 
-        // Autosize columns
-        for (i in 0 until headers.size) {
-            try {
-                sheet.autoSizeColumn(i)
-            } catch (e: Exception) {
-                // Fail-safe logic
-            }
-        }
-
-        val file = File(context.cacheDir, "ledger_wallet_${wallet.name.replace(" ", "_").lowercase()}_${System.currentTimeMillis()}.xlsx")
-        FileOutputStream(file).use {
-            workbook.write(it)
-        }
-        workbook.close()
-        return file
+        return writeXlsxFile(
+            context,
+            "ledger_wallet_${wallet.name.replace(" ", "_").lowercase()}_${System.currentTimeMillis()}.xlsx",
+            rows
+        )
     }
 
     /**
@@ -296,7 +292,7 @@ object ExportEngine {
         // Draw Header Banner
         canvas.drawRect(Rect(0, 0, 595, 80), primaryColorPaint)
         canvas.drawText("FINANCIAL AUDIT REPORT", 25f, 42f, Paint(headerPaint).apply { textSize = 18f })
-        canvas.drawText("Generated locally by Expense Splitter", 25f, 62f, Paint(headerPaint).apply { textSize = 10f })
+        canvas.drawText("Generated locally by Travel Split", 25f, 62f, Paint(headerPaint).apply { textSize = 10f })
 
         var y = 110f
 
@@ -359,7 +355,7 @@ object ExportEngine {
         val altRowPaint = Paint().apply { color = Color.parseColor("#F9FAFB") }
         val cellBorderPaint = Paint().apply { color = Color.parseColor("#E5E7EB"); strokeWidth = 1f }
 
-        val listSdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val listSdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
 
         expenses.forEachIndexed { index, exp ->
             if (y > 780f) {
@@ -480,7 +476,7 @@ object ExportEngine {
         // Draw Header Banner
         canvas.drawRect(Rect(0, 0, 595, 80), primaryColorPaint)
         canvas.drawText("WALLET FINANCIAL REPORT", 25f, 42f, Paint(headerPaint).apply { textSize = 18f })
-        canvas.drawText("Generated locally by Expense Splitter", 25f, 62f, Paint(headerPaint).apply { textSize = 10f })
+        canvas.drawText("Generated locally by Travel Split", 25f, 62f, Paint(headerPaint).apply { textSize = 10f })
 
         var y = 110f
 
@@ -547,7 +543,7 @@ object ExportEngine {
         val altRowPaint = Paint().apply { color = Color.parseColor("#F9FAFB") }
         val cellBorderPaint = Paint().apply { color = Color.parseColor("#E5E7EB"); strokeWidth = 1f }
 
-        val listSdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val listSdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
 
         walletExpenses.forEachIndexed { index, exp ->
             if (y > 780f) {

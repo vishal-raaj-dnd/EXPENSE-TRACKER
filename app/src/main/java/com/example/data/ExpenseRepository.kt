@@ -55,6 +55,9 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
     }
 
     suspend fun deleteSpace(space: Space) {
+        expenseDao.deleteSplitsBySpaceId(space.id)
+        expenseDao.deleteExpensesBySpaceId(space.id)
+        expenseDao.deleteSpaceMembers(space.id)
         expenseDao.deleteSpace(space)
     }
 
@@ -65,6 +68,14 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
             expenseDao.insertExpenseSplit(split.copy(expenseId = expenseId))
         }
         return expenseId
+    }
+
+    suspend fun updateExpenseWithSplits(expense: Expense, splits: List<ExpenseSplit>) {
+        expenseDao.insertExpense(expense)
+        expenseDao.deleteSplitsByExpenseId(expense.id)
+        for (split in splits) {
+            expenseDao.insertExpenseSplit(split.copy(expenseId = expense.id))
+        }
     }
 
     suspend fun deleteExpense(expenseId: Long) {
@@ -78,6 +89,7 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
     }
 
     suspend fun deleteWallet(wallet: Wallet) {
+        expenseDao.deleteSubscriptionsByWalletId(wallet.id)
         expenseDao.deleteWallet(wallet)
     }
 
@@ -87,6 +99,7 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
     }
 
     suspend fun deleteCategory(category: Category) {
+        expenseDao.deleteBudgetsByCategoryName(category.name)
         expenseDao.deleteCategory(category)
     }
 
@@ -167,5 +180,51 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
             }
         }
         return processedCount
+    }
+
+    // --- All Splits Flow (for dashboard sync) ---
+    val allExpenseSplits: Flow<List<ExpenseSplit>> = expenseDao.getAllExpenseSplits()
+
+    // --- Update User (for profile editing) ---
+    suspend fun updateUser(user: User) {
+        expenseDao.insertUser(user)
+    }
+
+    /**
+     * Removes a user from a space and recalculates all affected expense splits.
+     * 1. Expenses paid by deleted user -> delete expense + all its splits
+     * 2. Expenses where deleted user was a split participant -> remove their split
+     *    and redistribute evenly among remaining participants
+     * 3. Remove the SpaceMember entry
+     */
+    suspend fun removeUserFromSpaceAndRecalculate(spaceId: Long, userId: Long) {
+        // Step 1: Delete all expenses paid by this user in this space (and their splits)
+        val paidExpenseIds = expenseDao.getExpenseIdsPayedByUserInSpace(spaceId, userId)
+        for (expenseId in paidExpenseIds) {
+            expenseDao.deleteSplitsByExpenseId(expenseId)
+            expenseDao.deleteExpenseById(expenseId)
+        }
+
+        // Step 2: Remove this user's splits from expenses they didn't pay
+        expenseDao.deleteSplitsByUserInSpace(spaceId, userId)
+
+        // Step 3: Recalculate remaining splits for all expenses in this space
+        val remainingExpenses = expenseDao.getExpensesInSpaceSync(spaceId)
+        for (expense in remainingExpenses) {
+            val remainingSplits = expenseDao.getSplitsForExpenseSync(expense.id)
+            if (remainingSplits.isEmpty()) {
+                // No participants left -> delete the orphaned expense
+                expenseDao.deleteExpenseById(expense.id)
+            } else {
+                // Redistribute the expense amount equally among remaining participants
+                val newPerPerson = expense.amount / remainingSplits.size
+                for (split in remainingSplits) {
+                    expenseDao.updateSplitAmount(split.id, newPerPerson)
+                }
+            }
+        }
+
+        // Step 4: Remove the space membership
+        expenseDao.deleteSpaceMember(spaceId, userId)
     }
 }

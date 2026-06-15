@@ -60,6 +60,7 @@ fun CategoryManagerScreen(
     )
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = { Text("Category Manager", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold) },

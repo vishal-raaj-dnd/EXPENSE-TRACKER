@@ -41,41 +41,42 @@ val LightInversePrimary = Color(0xFF80CBC4)
 val LightSurfaceTint = Color(0xFF00695C)
 val LightScrim = Color(0xFF000000)
 
-// ── Dark Theme Palette (Deep Obsidian Emerald & Gold) ──
-val DarkPrimary = Color(0xFF80CBC4)         // Vibrant minty teal
-val DarkOnPrimary = Color(0xFF003730)
-val DarkPrimaryContainer = Color(0xFF004D40)
-val DarkOnPrimaryContainer = Color(0xFFD0F2ED)
+// ── Dark Theme Palette (Cyber Lime Neon & Obsidian) ──
+val DarkPrimary = Color(0xFFD4FC34)         // Vibrant Cyber Lime Neon Green
+val DarkOnPrimary = Color(0xFF0C0E14)       // Midnight Slate-Black
+val DarkPrimaryContainer = Color(0xFF1F2507) // Dark Olive/Lime container
+val DarkOnPrimaryContainer = Color(0xFFD4FC34)
 
-val DarkSecondary = Color(0xFF9FA8DA)       // Smooth Lavender-blue
-val DarkOnSecondary = Color(0xFF151B54)
-val DarkSecondaryContainer = Color(0xFF283593)
-val DarkOnSecondaryContainer = Color(0xFFD6E2FF)
+val DarkSecondary = Color(0xFF94A3B8)       // Cool Steel Gray
+val DarkOnSecondary = Color(0xFF0C0E14)
+val DarkSecondaryContainer = Color(0xFF1E293B)
+val DarkOnSecondaryContainer = Color(0xFFE2E8F0)
 
 val DarkTertiary = Color(0xFFFFB74D)        // Warm Sand Gold Amber
 val DarkOnTertiary = Color(0xFF4D2600)
 val DarkTertiaryContainer = Color(0xFF6E3900)
 val DarkOnTertiaryContainer = Color(0xFFFFDCD0)
 
-val DarkBackground = Color(0xFF0E1114)      // Absolute dark slate-black (Obsidian Slate)
-val DarkOnBackground = Color(0xFFE3E8EC)    // Bright readable text
+val DarkBackground = Color(0xFF0C0E14)      // Midnight Obsidian Slate-Black
+val DarkOnBackground = Color(0xFFF8FAFC)    // Crisp Ice White
 
-val DarkSurface = Color(0xFF15191D)         // Polished elevated card slate
-val DarkOnSurface = Color(0xFFE3E8EC)
-val DarkSurfaceVariant = Color(0xFF1F242B)  // Perfectly layered secondary surface
-val DarkOnSurfaceVariant = Color(0xFF90A1B0) // Soft subtext gray-blue
+val DarkSurface = Color(0xFF171B26)         // Graphite Card Surface
+val DarkOnSurface = Color(0xFFF8FAFC)
+val DarkSurfaceVariant = Color(0xFF222736)  // Layered Carbon Gray
+val DarkOnSurfaceVariant = Color(0xFF94A3B8) // Muted Silver-grey subtext
 
-val DarkOutline = Color(0xFF303943)         // Modern high-contrast dark border
-val DarkOutlineVariant = Color(0xFF43515E)
+val DarkOutline = Color(0xFF2A2F42)         // Subtle Charcoal Outline
+val DarkOutlineVariant = Color(0xFF383F57)
 
 val DarkError = Color(0xFFF28B82)
 val DarkOnError = Color(0xFF601410)
 val DarkErrorContainer = Color(0xFF8C1D18)
 val DarkOnErrorContainer = Color(0xFFFFDAD6)
 
-val DarkInverseSurface = Color(0xFFE3E8EC)
-val DarkInverseOnSurface = Color(0xFF0E1114)
+val DarkInverseSurface = Color(0xFFF8FAFC)
+val DarkInverseOnSurface = Color(0xFF0C0E14)
 val DarkInversePrimary = Color(0xFF00695C)
 
-val DarkSurfaceTint = Color(0xFF80CBC4)
+val DarkSurfaceTint = Color(0xFFD4FC34)
 val DarkScrim = Color(0xFF000000)
+

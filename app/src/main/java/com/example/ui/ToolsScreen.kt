@@ -169,7 +169,7 @@ fun EmiCalculatorPanel(
                     OutlinedTextField(
                         value = principalText,
                         onValueChange = { principalText = it },
-                        label = { Text("Loan Principal ($)") },
+                        label = { Text("Loan Principal (₹)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth().testTag("emi_principal_input"),
@@ -260,15 +260,21 @@ fun EmiCalculatorPanel(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text("Total Principal", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                             Text("₹${String.format(Locale.US, "%.2f", principal)}", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
                             Text("Total Interest", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                             Text("₹${String.format(Locale.US, "%.2f", totalInterest)}", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
-                        Column(horizontalAlignment = Alignment.End) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.End
+                        ) {
                             Text("Payment Sum", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                             Text("₹${String.format(Locale.US, "%.2f", totalPayment)}", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Black, fontSize = 14.sp)
                         }
@@ -326,6 +332,9 @@ fun EmiCalculatorPanel(
                     Text("Save Loan Sum as Expense", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
                 }
             }
+        }
+        item {
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
@@ -385,8 +394,10 @@ fun InterestCalculatorPanel(
                             text = "Wealth & Debt Growth Evaluator",
                             color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
+                            fontSize = 15.sp,
+                            modifier = Modifier.weight(1f)
                         )
+                        Spacer(modifier = Modifier.width(8.dp))
 
                         // Mode Selector (Simple vs Compound Switch buttons)
                         Row(
@@ -433,7 +444,7 @@ fun InterestCalculatorPanel(
                     OutlinedTextField(
                         value = principalText,
                         onValueChange = { principalText = it },
-                        label = { Text("Principal Amount ($)") },
+                        label = { Text("Principal Amount (₹)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth().testTag("interest_principal_input"),
@@ -490,25 +501,28 @@ fun InterestCalculatorPanel(
 
                     if (isCompound) {
                         Spacer(modifier = Modifier.height(14.dp))
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
+                        Column(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("Compounding Habit: ", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
                             Row(
                                 modifier = Modifier
+                                    .fillMaxWidth()
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                                    .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                                horizontalArrangement = Arrangement.SpaceEvenly
                             ) {
                                 listOf(12 to "Monthly", 4 to "Quarterly", 1 to "Yearly").forEach { (freq, label) ->
                                     val isSelected = compoundFrequency == freq
                                     Box(
                                         modifier = Modifier
+                                            .weight(1f)
                                             .clip(RoundedCornerShape(8.dp))
                                             .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) else Color.Transparent)
                                             .clickable { compoundFrequency = freq }
-                                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                                            .padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
                                     ) {
                                         Text(label, color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     }
@@ -553,11 +567,14 @@ fun InterestCalculatorPanel(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text("Initial Capital", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                             Text("₹${String.format(Locale.US, "%.2f", principal)}", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
-                        Column(horizontalAlignment = Alignment.End) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.End
+                        ) {
                             Text("Total Yield (Interest)", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                             Text("₹${String.format(Locale.US, "%.2f", interestEarned)}", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
@@ -616,6 +633,9 @@ fun InterestCalculatorPanel(
                 }
             }
         }
+        item {
+            Spacer(modifier = Modifier.height(24.dp))
+        }
     }
 }
 
@@ -673,8 +693,10 @@ fun GstCalculatorPanel(
                             text = "GST & General Sales Tax Calculator",
                             color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
+                            fontSize = 15.sp,
+                            modifier = Modifier.weight(1f)
                         )
+                        Spacer(modifier = Modifier.width(8.dp))
 
                         // Add vs Extract Toggle
                         Row(
@@ -721,7 +743,7 @@ fun GstCalculatorPanel(
                     OutlinedTextField(
                         value = baseText,
                         onValueChange = { baseText = it },
-                        label = { Text(if (!isInclusive) "Original Price (Excl. Tax) ($)" else "Final Price (Incl. Tax) ($)") },
+                        label = { Text(if (!isInclusive) "Original Price (Excl. Tax) (₹)" else "Final Price (Incl. Tax) (₹)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth().testTag("gst_amount_input"),
@@ -737,9 +759,9 @@ fun GstCalculatorPanel(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    Row(
+                    Column(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         OutlinedTextField(
                             value = taxRateText,
@@ -747,7 +769,7 @@ fun GstCalculatorPanel(
                             label = { Text("Tax Slab (%)") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             singleLine = true,
-                            modifier = Modifier.weight(1f).testTag("gst_rate_input"),
+                            modifier = Modifier.fillMaxWidth().testTag("gst_rate_input"),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = MaterialTheme.colorScheme.onSurface,
                                 unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
@@ -758,22 +780,25 @@ fun GstCalculatorPanel(
                             )
                         )
 
-                        Spacer(modifier = Modifier.width(12.dp))
-
                         // Quick Tax Slab helpers
                         Column(
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text("Slab Presets:", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
                                 listOf("5", "12", "18", "28").forEach { preset ->
                                     Box(
                                         modifier = Modifier
+                                            .weight(1f)
                                             .clip(RoundedCornerShape(6.dp))
                                             .background(if (taxRateText == preset) MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
                                             .border(1.dp, if (taxRateText == preset) MaterialTheme.colorScheme.secondary else Color.Transparent, RoundedCornerShape(6.dp))
                                             .clickable { taxRateText = preset }
-                                            .padding(horizontal = 6.dp, vertical = 4.dp)
+                                            .padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
                                     ) {
                                         Text(preset + "%", color = MaterialTheme.colorScheme.onSurface, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     }
@@ -793,7 +818,7 @@ fun GstCalculatorPanel(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
-                    modifier = Modifier.padding(18.dp),
+                    modifier = Modifier.padding(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
@@ -880,6 +905,9 @@ fun GstCalculatorPanel(
                     Text("Save Tax Amount purely as Expense", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
                 }
             }
+        }
+        item {
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }

@@ -60,6 +60,9 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
     val allSubscriptions: StateFlow<List<Subscription>> = repository.allSubscriptions
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val allExpenseSplits: StateFlow<List<ExpenseSplit>> = repository.allExpenseSplits
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // --- Pending Expense amount to pass from calculators ---
     private val _pendingExpenseAmount = MutableStateFlow<Double?>(null)
     val pendingExpenseAmount = _pendingExpenseAmount.asStateFlow()
@@ -70,6 +73,18 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
 
     fun clearPendingExpenseAmount() {
         _pendingExpenseAmount.value = null
+    }
+
+    // --- Editing Expense State ---
+    private val _editingExpense = MutableStateFlow<Expense?>(null)
+    val editingExpense = _editingExpense.asStateFlow()
+
+    fun startEditingExpense(expense: Expense) {
+        _editingExpense.value = expense
+    }
+
+    fun clearEditingExpense() {
+        _editingExpense.value = null
     }
 
     // --- Active Space Details & Calculations ---
@@ -155,19 +170,15 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
 
     val overallUserBalance: StateFlow<OverallBalanceSummary> = combine(
         allExpenses,
+        allExpenseSplits,
         _currentUserId
-    ) { expenses, currentId ->
-        val paidByMe = expenses.filter { it.paidById == currentId && it.category != "Settlement" }.sumOf { it.amount }
-        val settledByMe = expenses.filter { it.paidById == currentId && it.category == "Settlement" }.sumOf { it.amount }
-        
-        val paidByOthers = expenses.filter { it.paidById != currentId && it.category != "Settlement" }.sumOf { it.amount }
-        val settledByOthers = expenses.filter { it.paidById != currentId && it.category == "Settlement" }.sumOf { it.amount }
+    ) { expenses, splits, currentId ->
+        // Total I paid across all spaces
+        val totalPaidByMe = expenses.filter { it.paidById == currentId }.sumOf { it.amount }
+        // Total I owe across all spaces (from splits assigned to me)
+        val totalOwedByMe = splits.filter { it.userId == currentId }.sumOf { it.amountOwed }
 
-        // Realistic split-based netting estimation
-        val totalOwedToMe = (paidByMe * 0.67) + settledByMe
-        val totalIOwe = (paidByOthers * 0.33) - settledByOthers
-
-        val net = totalOwedToMe - totalIOwe
+        val net = totalPaidByMe - totalOwedByMe
         OverallBalanceSummary(
             totalOwedToYou = if (net > 0) net else 0.0,
             totalYouOwe = if (net < 0) -net else 0.0,
@@ -217,11 +228,69 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
         }
     }
 
+    fun updateUserProfile(userId: Long, newName: String, newAvatarUrl: String = "") {
+        viewModelScope.launch {
+            val existing = repository.allUsers.first().find { it.id == userId } ?: return@launch
+            repository.updateUser(existing.copy(name = newName, avatarUrl = newAvatarUrl.ifEmpty { existing.avatarUrl }))
+        }
+    }
+
+    fun updateUserAvatar(userId: Long, avatarUrl: String) {
+        viewModelScope.launch {
+            val existing = repository.allUsers.first().find { it.id == userId } ?: return@launch
+            repository.updateUser(existing.copy(avatarUrl = avatarUrl))
+        }
+    }
+
     fun createSpace(name: String, description: String, memberIds: List<Long>) {
         viewModelScope.launch {
             repository.addSpaceWithMembers(name, description, memberIds)
         }
     }
+
+    /**
+     * Creates a space with new members specified by name strings.
+     * Creates users if needed, then creates the space with all member IDs.
+     */
+    fun createSpaceWithNewMembers(spaceName: String, spaceDesc: String, memberNames: List<String>, existingMemberIds: List<Long> = emptyList()) {
+        viewModelScope.launch {
+            val allIds = existingMemberIds.toMutableList()
+            for (name in memberNames) {
+                val email = "${name.lowercase().replace(" ", "")}@example.com"
+                val id = repository.insertUser(User(name = name, email = email))
+                allIds.add(id)
+            }
+            // Always include the current active user
+            val currentId = _currentUserId.value
+            if (!allIds.contains(currentId)) {
+                allIds.add(currentId)
+            }
+            repository.addSpaceWithMembers(spaceName, spaceDesc, allIds)
+        }
+    }
+
+    fun addMemberToSpace(spaceId: Long, userId: Long) {
+        viewModelScope.launch {
+            repository.addMemberToSpace(spaceId, userId)
+        }
+    }
+
+    fun createAndAddMemberToSpace(spaceId: Long, name: String, email: String) {
+        viewModelScope.launch {
+            val userId = repository.insertUser(User(name = name, email = email))
+            repository.addMemberToSpace(spaceId, userId)
+        }
+    }
+
+    fun removeUserFromSpaceAndRecalculate(spaceId: Long, userId: Long) {
+        viewModelScope.launch {
+            repository.removeUserFromSpaceAndRecalculate(spaceId, userId)
+        }
+    }
+
+    fun getMembersOfSpace(spaceId: Long): kotlinx.coroutines.flow.Flow<List<User>> = repository.getMembersOfSpace(spaceId)
+
+    fun getSplitsForExpense(expenseId: Long): kotlinx.coroutines.flow.Flow<List<ExpenseSplit>> = repository.getSplitsForExpense(expenseId)
 
     fun addExpenseEqualSplit(
         spaceId: Long,
@@ -232,12 +301,14 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
         participantIds: List<Long>,
         date: Long = System.currentTimeMillis(),
         walletId: Long = 1L,
-        attachmentUris: List<String> = emptyList()
+        attachmentUris: List<String> = emptyList(),
+        expenseId: Long = 0L
     ) {
         viewModelScope.launch {
             if (participantIds.isEmpty()) return@launch
             val perPerson = amount / participantIds.size
             val expense = Expense(
+                id = expenseId,
                 spaceId = spaceId,
                 paidById = paidById,
                 description = description,
@@ -249,12 +320,16 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
             )
             val splits = participantIds.map { userId ->
                 ExpenseSplit(
-                    expenseId = 0, // Will be replaced in repository
+                    expenseId = expenseId,
                     userId = userId,
                     amountOwed = perPerson
                 )
             }
-            repository.addExpenseWithSplits(expense, splits)
+            if (expenseId > 0L) {
+                repository.updateExpenseWithSplits(expense, splits)
+            } else {
+                repository.addExpenseWithSplits(expense, splits)
+            }
         }
     }
 
@@ -267,10 +342,12 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
         splitsMap: Map<Long, Double>,
         date: Long = System.currentTimeMillis(),
         walletId: Long = 1L,
-        attachmentUris: List<String> = emptyList()
+        attachmentUris: List<String> = emptyList(),
+        expenseId: Long = 0L
     ) {
         viewModelScope.launch {
             val expense = Expense(
+                id = expenseId,
                 spaceId = spaceId,
                 paidById = paidById,
                 description = description,
@@ -282,12 +359,16 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
             )
             val splits = splitsMap.map { (userId, amountOwed) ->
                 ExpenseSplit(
-                    expenseId = 0,
+                    expenseId = expenseId,
                     userId = userId,
                     amountOwed = amountOwed
                 )
             }
-            repository.addExpenseWithSplits(expense, splits)
+            if (expenseId > 0L) {
+                repository.updateExpenseWithSplits(expense, splits)
+            } else {
+                repository.addExpenseWithSplits(expense, splits)
+            }
         }
     }
 
@@ -300,10 +381,12 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
         date: Long,
         splits: List<ExpenseSplit>,
         walletId: Long = 1L,
-        attachmentUris: List<String> = emptyList()
+        attachmentUris: List<String> = emptyList(),
+        expenseId: Long = 0L
     ) {
         viewModelScope.launch {
             val expense = Expense(
+                id = expenseId,
                 spaceId = spaceId,
                 paidById = paidById,
                 description = description,
@@ -313,7 +396,12 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
                 walletId = walletId,
                 attachmentUris = attachmentUris
             )
-            repository.addExpenseWithSplits(expense, splits)
+            val targetSplits = splits.map { it.copy(expenseId = expenseId) }
+            if (expenseId > 0L) {
+                repository.updateExpenseWithSplits(expense, targetSplits)
+            } else {
+                repository.addExpenseWithSplits(expense, targetSplits)
+            }
         }
     }
 
@@ -321,6 +409,12 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
     fun insertWallet(name: String, type: String, balance: Double) {
         viewModelScope.launch {
             repository.insertWallet(Wallet(name = name, type = type, balance = balance))
+        }
+    }
+
+    fun updateWallet(wallet: Wallet) {
+        viewModelScope.launch {
+            repository.insertWallet(wallet)
         }
     }
 

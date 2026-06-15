@@ -14,14 +14,14 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.first
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36])
+@Config(sdk = [35])
 class ExampleRobolectricTest {
 
   @Test
   fun `read string from context`() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val appName = context.getString(R.string.app_name)
-    assertEquals("Expense Splitter", appName)
+    assertEquals("Travel Split", appName)
   }
 
   @Test

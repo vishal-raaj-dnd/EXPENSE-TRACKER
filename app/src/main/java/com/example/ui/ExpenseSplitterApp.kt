@@ -14,7 +14,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -37,11 +37,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.data.*
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlinx.coroutines.flow.flowOf
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -93,6 +96,7 @@ object Routes {
     const val CATEGORY_MANAGER = "category_manager"
     const val BUDGET_MANAGER = "budget_manager"
     const val RECURRING_MANAGER = "recurring_manager"
+    const val WALLET_MANAGER = "wallet_manager"
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -100,10 +104,8 @@ object Routes {
 fun ExpenseSplitterApp(viewModel: ExpenseViewModel, isDarkTheme: Boolean = true, onThemeToggle: () -> Unit = {}) {
     val navController = rememberNavController()
     val activeUser by viewModel.currentUser.collectAsStateWithLifecycle()
-    val currentRoute = remember { mutableStateOf(Routes.HOME) }
-    
-    // Switch Profile Dialog state
-    var showSwitchProfileDialog by remember { mutableStateOf(false) }
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route ?: Routes.HOME
     val allUsers by viewModel.allUsers.collectAsStateWithLifecycle()
     val appInitState by viewModel.appInitState.collectAsStateWithLifecycle()
     val isDatabaseLoaded = appInitState.isLoaded
@@ -175,27 +177,24 @@ fun ExpenseSplitterApp(viewModel: ExpenseViewModel, isDarkTheme: Boolean = true,
                         Row(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Box(
+                            Image(
+                                painter = androidx.compose.ui.res.painterResource(
+                                    id = if (isDarkTheme) com.example.R.drawable.logo_dark else com.example.R.drawable.logo_light
+                                ),
+                                contentDescription = "Travel Split Logo",
                                 modifier = Modifier
+                                    .size(28.dp)
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-                                    .padding(horizontal = 6.dp, vertical = 3.dp)
-                            ) {
-                                Text(
-                                    text = "⚡",
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = 12.sp
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "SPLITIFY",
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontWeight = FontWeight.Black,
-                                fontSize = 18.sp,
-                                letterSpacing = 2.sp
                             )
+                            Spacer(modifier = Modifier.width(8.dp))
+                             Text(
+                                 text = "Travel Split",
+                                 color = MaterialTheme.colorScheme.onSurface,
+                                 fontWeight = FontWeight.Bold,
+                                 fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif,
+                                 fontSize = 20.sp,
+                                 letterSpacing = 0.5.sp
+                             )
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -209,46 +208,35 @@ fun ExpenseSplitterApp(viewModel: ExpenseViewModel, isDarkTheme: Boolean = true,
                                 tint = MaterialTheme.colorScheme.primary
                             )
                         }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        // Active user avatar at top right
                         activeUser?.let { user ->
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
-                                    .clickable { showSwitchProfileDialog = true }
-                                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                                    .testTag("top_profile_badge")
-                            ) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            if (user.avatarUrl.isNotBlank()) {
+                                coil.compose.AsyncImage(
+                                    model = user.avatarUrl,
+                                    contentDescription = "Profile Picture",
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.primary)
+                                        .testTag("top_profile_badge"),
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                )
+                            } else {
                                 Box(
                                     contentAlignment = Alignment.Center,
                                     modifier = Modifier
-                                        .size(24.dp)
+                                        .size(32.dp)
                                         .clip(CircleShape)
                                         .background(MaterialTheme.colorScheme.primary)
+                                        .testTag("top_profile_badge")
                                 ) {
                                     Text(
                                         text = user.name.take(1).uppercase(),
                                         color = MaterialTheme.colorScheme.onPrimary,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp
+                                        fontSize = 14.sp
                                     )
                                 }
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = user.name,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Icon(
-                                    imageVector = Icons.Default.ArrowDropDown,
-                                    contentDescription = "Switch User",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(18.dp)
-                                )
                             }
                         }
                         Spacer(modifier = Modifier.width(8.dp))
@@ -266,23 +254,25 @@ fun ExpenseSplitterApp(viewModel: ExpenseViewModel, isDarkTheme: Boolean = true,
                     val items = listOf(
                         NavigationItem("Home", Routes.HOME, Icons.Default.Home, "home_tab"),
                         NavigationItem("Spaces", Routes.SPACES, Icons.Default.Group, "spaces_tab"),
-                        NavigationItem("Add", Routes.ADD_EXPENSE, Icons.Default.AddCircle, "add_tab"),
                         NavigationItem("Tools", Routes.TOOLS, Icons.Default.Calculate, "tools_tab"),
                         NavigationItem("Profile", Routes.PROFILE, Icons.Default.Person, "profile_tab")
                     )
 
                     items.forEach { item ->
-                        val selected = currentRoute.value == item.route
+                        val selected = currentRoute == item.route
                         NavigationBarItem(
                             selected = selected,
                             onClick = {
-                                if (currentRoute.value != item.route) {
-                                    currentRoute.value = item.route
-                                    navController.navigate(item.route) {
-                                        popUpTo(navController.graph.startDestinationId) { saveState = true }
-                                        launchSingleTop = true
-                                        restoreState = true
+                                if (currentRoute != item.route) {
+                                    if (item.route != Routes.TOOLS) {
+                                        viewModel.selectSpace(null)
                                     }
+                                    navController.navigate(item.route) {
+                                        popUpTo(navController.graph.startDestinationId)
+                                        launchSingleTop = true
+                                    }
+                                } else if (item.route == Routes.SPACES) {
+                                    viewModel.selectSpace(null)
                                 }
                             },
                             icon = {
@@ -321,26 +311,30 @@ fun ExpenseSplitterApp(viewModel: ExpenseViewModel, isDarkTheme: Boolean = true,
             composable(Routes.HOME) {
                 HomeScreen(viewModel, onNavigateToSpace = { spaceId ->
                     viewModel.selectSpace(spaceId)
-                    currentRoute.value = Routes.SPACES
                     navController.navigate(Routes.SPACES)
                 })
             }
             composable(Routes.SPACES) {
-                SpacesScreen(viewModel)
+                SpacesScreen(
+                    viewModel = viewModel,
+                    onNavigateToAddExpense = {
+                        navController.navigate(Routes.ADD_EXPENSE) {
+                            popUpTo(Routes.SPACES) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                )
             }
             composable(Routes.ADD_EXPENSE) {
                 AddExpenseScreen(viewModel, onSaved = {
-                    currentRoute.value = Routes.HOME
-                    navController.navigate(Routes.HOME) {
-                        popUpTo(Routes.HOME) { inclusive = true }
-                    }
+                    navController.popBackStack()
                 })
             }
             composable(Routes.TOOLS) {
                 ToolsScreen(
                     viewModel = viewModel,
                     onNavigateToAddExpense = {
-                        currentRoute.value = Routes.ADD_EXPENSE
                         navController.navigate(Routes.ADD_EXPENSE) {
                             popUpTo(Routes.TOOLS) { saveState = true }
                             launchSingleTop = true
@@ -354,7 +348,8 @@ fun ExpenseSplitterApp(viewModel: ExpenseViewModel, isDarkTheme: Boolean = true,
                     viewModel = viewModel,
                     onNavigateToCategoryManager = { navController.navigate(Routes.CATEGORY_MANAGER) },
                     onNavigateToBudgetManager = { navController.navigate(Routes.BUDGET_MANAGER) },
-                    onNavigateToSubscriptionManager = { navController.navigate(Routes.RECURRING_MANAGER) }
+                    onNavigateToSubscriptionManager = { navController.navigate(Routes.RECURRING_MANAGER) },
+                    onNavigateToWalletManager = { navController.navigate(Routes.WALLET_MANAGER) }
                 )
             }
             composable(Routes.CATEGORY_MANAGER) {
@@ -375,85 +370,16 @@ fun ExpenseSplitterApp(viewModel: ExpenseViewModel, isDarkTheme: Boolean = true,
                     onBack = { navController.popBackStack() }
                 )
             }
-        }
-    }
-
-    // switch user dialog
-    if (showSwitchProfileDialog) {
-        Dialog(onDismissRequest = { showSwitchProfileDialog = false }) {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "Switch Active User",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.heightIn(max = 240.dp)
-                    ) {
-                        items(allUsers) { user ->
-                            val isCurrent = user.id == activeUser?.id
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isCurrent) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent)
-                                    .clickable {
-                                        viewModel.selectCurrentUser(user.id)
-                                        showSwitchProfileDialog = false
-                                    }
-                                    .padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier
-                                        .size(32.dp)
-                                        .clip(CircleShape)
-                                        .background(if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                                ) {
-                                    Text(
-                                        text = user.name.take(1).uppercase(),
-                                        color = if (isCurrent) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Text(text = user.name, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                                    Text(text = user.email, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                                }
-                                if (isCurrent) {
-                                    Spacer(modifier = Modifier.weight(1f))
-                                    Icon(
-                                        imageVector = Icons.Default.CheckCircle,
-                                        contentDescription = "Active",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-                    TextButton(onClick = { showSwitchProfileDialog = false }) {
-                        Text("Cancel", color = MaterialTheme.colorScheme.secondary)
-                    }
-                }
+            composable(Routes.WALLET_MANAGER) {
+                WalletManagerScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() }
+                )
             }
         }
     }
+
+
     } // closes Box
     } // closes dashboard state block
     } // closes when(state)
@@ -577,21 +503,20 @@ fun HomeScreen(viewModel: ExpenseViewModel, onNavigateToSpace: (Long) -> Unit) {
                     .fillMaxWidth()
                     .testTag("balance_summary_card")
             ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                Column(modifier = Modifier.padding(24.dp)) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Icon(
-                                imageVector = if (isPositive) Icons.Default.TrendingUp else Icons.Default.TrendingDown,
+                                imageVector = if (isPositive) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
                                 contentDescription = "Net Balance Indicator",
                                 tint = if (isPositive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
                                 modifier = Modifier.size(20.dp)
+                                // Icons.AutoMirrored.Filled is available via imports
                             )
                             Column {
                                 Text(
@@ -609,6 +534,7 @@ fun HomeScreen(viewModel: ExpenseViewModel, onNavigateToSpace: (Long) -> Unit) {
                                 )
                             }
                         }
+                        Spacer(modifier = Modifier.height(14.dp))
                         Text(
                             text = if (overallBalance.netBalance >= 0.0) {
                                 "+₹${String.format(java.util.Locale.US, "%.2f", overallBalance.netBalance)}"
@@ -616,14 +542,14 @@ fun HomeScreen(viewModel: ExpenseViewModel, onNavigateToSpace: (Long) -> Unit) {
                                 "-₹${String.format(java.util.Locale.US, "%.2f", kotlin.math.abs(overallBalance.netBalance))}"
                             },
                             color = if (overallBalance.netBalance >= 0.0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
-                            fontSize = 24.sp,
+                            fontSize = 32.sp,
                             fontWeight = FontWeight.Black
                         )
                     }
                     
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), thickness = 1.dp)
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -636,7 +562,7 @@ fun HomeScreen(viewModel: ExpenseViewModel, onNavigateToSpace: (Long) -> Unit) {
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
+                            Column(modifier = Modifier.padding(16.dp)) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -673,7 +599,7 @@ fun HomeScreen(viewModel: ExpenseViewModel, onNavigateToSpace: (Long) -> Unit) {
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f)),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
+                            Column(modifier = Modifier.padding(16.dp)) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -1077,13 +1003,14 @@ fun SpaceCard(
 // --- SPACES SCREEN ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SpacesScreen(viewModel: ExpenseViewModel) {
+fun SpacesScreen(viewModel: ExpenseViewModel, onNavigateToAddExpense: () -> Unit) {
     val spaces by viewModel.allSpaces.collectAsStateWithLifecycle()
     val activeSpaceId by viewModel.activeSpaceId.collectAsStateWithLifecycle()
     val allUsers by viewModel.allUsers.collectAsStateWithLifecycle()
 
     var showCreateSpaceDialog by remember { mutableStateOf(false) }
     var showCameraScanner by remember { mutableStateOf(false) }
+    var spaceToShare by remember { mutableStateOf<Space?>(null) }
     val context = LocalContext.current
     var hasCameraPermission by remember {
         mutableStateOf(
@@ -1134,9 +1061,17 @@ fun SpacesScreen(viewModel: ExpenseViewModel) {
                 showCameraScanner = false
             }
         )
-    } else if (activeSpaceId != null) {
+    }
+    if (spaceToShare != null) {
+        ShareSpaceDialog(
+            spaceId = spaceToShare!!.id,
+            viewModel = viewModel,
+            onDismiss = { spaceToShare = null }
+        )
+    }
+    if (activeSpaceId != null) {
         // Render Detail View
-        SpaceDetailScreen(viewModel)
+        SpaceDetailScreen(viewModel, onNavigateToAddExpense)
     } else {
         // Render List of Spaces
         Scaffold(
@@ -1150,7 +1085,8 @@ fun SpacesScreen(viewModel: ExpenseViewModel) {
                     Icon(imageVector = Icons.Default.Add, contentDescription = "Create Group")
                 }
             },
-            containerColor = Color.Transparent
+            containerColor = Color.Transparent,
+            contentWindowInsets = WindowInsets(0, 0, 0, 0)
         ) { innerPadding ->
             LazyColumn(
                 modifier = Modifier
@@ -1256,15 +1192,29 @@ fun SpacesScreen(viewModel: ExpenseViewModel) {
                                         fontSize = 18.sp,
                                         fontWeight = FontWeight.Bold
                                     )
-                                    IconButton(
-                                        onClick = { viewModel.deleteSpace(space) },
-                                        modifier = Modifier.testTag("delete_space_${space.id}")
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Delete,
-                                            contentDescription = "Delete Space",
-                                            tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.8f)
-                                        )
+                                        IconButton(
+                                            onClick = { spaceToShare = space },
+                                            modifier = Modifier.testTag("share_space_item_${space.id}")
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Share,
+                                                contentDescription = "Share Space / QR",
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                        IconButton(
+                                            onClick = { viewModel.deleteSpace(space) },
+                                            modifier = Modifier.testTag("delete_space_${space.id}")
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = "Delete Space",
+                                                tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.8f)
+                                            )
+                                        }
                                     }
                                 }
                                 Text(
@@ -1301,7 +1251,7 @@ fun SpacesScreen(viewModel: ExpenseViewModel) {
     if (showCreateSpaceDialog) {
         var spaceName by remember { mutableStateOf("") }
         var spaceDesc by remember { mutableStateOf("") }
-        val selectedUserIds = remember { mutableStateListOf<Long>() }
+        var memberNamesInput by remember { mutableStateOf("") }
 
         Dialog(onDismissRequest = { showCreateSpaceDialog = false }) {
             Card(
@@ -1349,45 +1299,20 @@ fun SpacesScreen(viewModel: ExpenseViewModel) {
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Select Members:",
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 14.sp
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = memberNamesInput,
+                        onValueChange = { memberNamesInput = it },
+                        label = { Text("Add Group Members (comma-separated, optional)") },
+                        placeholder = { Text("Rohan, Amit, Sunil") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                        ),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("new_space_members_input")
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    
-                    LazyColumn(
-                        modifier = Modifier.height(120.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        items(allUsers) { user ->
-                            val isChecked = selectedUserIds.contains(user.id)
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .clickable {
-                                        if (isChecked) selectedUserIds.remove(user.id)
-                                        else selectedUserIds.add(user.id)
-                                    }
-                                    .padding(vertical = 4.dp, horizontal = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Checkbox(
-                                    checked = isChecked,
-                                    onCheckedChange = {
-                                        if (isChecked) selectedUserIds.remove(user.id)
-                                        else selectedUserIds.add(user.id)
-                                    },
-                                    colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.primary)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(text = user.name, color = MaterialTheme.colorScheme.onSurface)
-                            }
-                        }
-                    }
 
                     Spacer(modifier = Modifier.height(16.dp))
                     Row(
@@ -1400,11 +1325,19 @@ fun SpacesScreen(viewModel: ExpenseViewModel) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
                             onClick = {
-                                if (spaceName.isNotBlank() && selectedUserIds.isNotEmpty()) {
-                                    viewModel.createSpace(spaceName, spaceDesc, selectedUserIds)
+                                if (spaceName.isNotBlank()) {
+                                    val names = memberNamesInput.split(",")
+                                        .map { it.trim() }
+                                        .filter { it.isNotEmpty() }
+                                    viewModel.createSpaceWithNewMembers(
+                                        spaceName = spaceName.trim(),
+                                        spaceDesc = spaceDesc.trim(),
+                                        memberNames = names
+                                    )
                                     showCreateSpaceDialog = false
                                 }
                             },
+                            enabled = spaceName.isNotBlank(),
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                             modifier = Modifier.testTag("submit_space_button")
                         ) {
@@ -1419,7 +1352,7 @@ fun SpacesScreen(viewModel: ExpenseViewModel) {
 
 // --- SPACE DETAIL SCREEN ---
 @Composable
-fun SpaceDetailScreen(viewModel: ExpenseViewModel) {
+fun SpaceDetailScreen(viewModel: ExpenseViewModel, onNavigateToAddExpense: () -> Unit) {
     val space by viewModel.activeSpace.collectAsStateWithLifecycle()
     val members by viewModel.activeSpaceMembers.collectAsStateWithLifecycle()
     val expenses by viewModel.activeSpaceExpenses.collectAsStateWithLifecycle()
@@ -1428,6 +1361,8 @@ fun SpaceDetailScreen(viewModel: ExpenseViewModel) {
 
     var selectedTabIndex by remember { mutableStateOf(0) }
     var showShareDialog by remember { mutableStateOf(false) }
+    var showAddMemberDialog by remember { mutableStateOf(false) }
+    var addMemberNameText by remember { mutableStateOf("") }
 
     if (showShareDialog && space != null) {
         ShareSpaceDialog(
@@ -1437,120 +1372,191 @@ fun SpaceDetailScreen(viewModel: ExpenseViewModel) {
         )
     }
 
-    Column(
-        modifier = Modifier.fillMaxSize()
-    ) {
-        // Back Header
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
-            ) {
-                IconButton(
-                    onClick = { viewModel.selectSpace(null) },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), CircleShape)
-                        .testTag("back_to_spaces")
+    if (showAddMemberDialog && space != null) {
+        AlertDialog(
+            onDismissRequest = { showAddMemberDialog = false },
+            title = { Text("Add Space Member", fontWeight = FontWeight.Bold) },
+            text = {
+                OutlinedTextField(
+                    value = addMemberNameText,
+                    onValueChange = { addMemberNameText = it },
+                    singleLine = true,
+                    label = { Text("Member Name") },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                    ),
+                    modifier = Modifier.testTag("add_member_name_input")
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (addMemberNameText.isNotBlank()) {
+                            viewModel.createAndAddMemberToSpace(
+                                spaceId = space!!.id,
+                                name = addMemberNameText.trim(),
+                                email = "${addMemberNameText.trim().lowercase().replace(" ", "")}@example.com"
+                            )
+                            addMemberNameText = ""
+                            showAddMemberDialog = false
+                        }
+                    },
+                    enabled = addMemberNameText.isNotBlank()
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Text("Add")
                 }
-                Spacer(modifier = Modifier.width(14.dp))
-                Column {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddMemberDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    Scaffold(
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { onNavigateToAddExpense() },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.testTag("add_expense_fab")
+            ) {
+                Icon(imageVector = Icons.Default.Add, contentDescription = "Add Expense")
+            }
+        },
+        containerColor = Color.Transparent
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            // Back Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    IconButton(
+                        onClick = { viewModel.selectSpace(null) },
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), CircleShape)
+                            .testTag("back_to_spaces")
                     ) {
-                        Text(
-                            text = space?.name ?: "Loading...",
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.Black,
-                            fontSize = 20.sp,
-                            letterSpacing = 0.5.sp
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
                         )
-                        if (space != null) {
-                            Spacer(modifier = Modifier.width(6.dp))
-                            IconButton(
-                                onClick = { showShareDialog = true },
-                                modifier = Modifier.size(28.dp).testTag("share_space_button")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Share,
-                                    contentDescription = "Share Space",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                    }
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = space?.name ?: "Loading...",
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 20.sp,
+                                letterSpacing = 0.5.sp
+                            )
+                            if (space != null) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                IconButton(
+                                    onClick = { showShareDialog = true },
+                                    modifier = Modifier.size(28.dp).testTag("share_space_button")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Share,
+                                        contentDescription = "Share Space",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                                IconButton(
+                                    onClick = { showAddMemberDialog = true },
+                                    modifier = Modifier.size(28.dp).testTag("add_member_button")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.PersonAdd,
+                                        contentDescription = "Add Member",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
                             }
                         }
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = space?.description ?: "",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
-                    Spacer(modifier = Modifier.height(2.dp))
+                }
+
+                // High-end Total Spent indicator
+                Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = space?.description ?: "",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                        fontSize = 11.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        text = "TOTAL SPENT",
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 1.sp
+                    )
+                    val totalSpentValue = expenses.sumOf { it.amount }
+                    Text(
+                        text = "₹${String.format(Locale.US, "%.2f", totalSpentValue)}",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Black
                     )
                 }
             }
 
-            // High-end Total Spent indicator
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = "TOTAL SPENT",
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 1.sp
+            TabRow(
+                selectedTabIndex = selectedTabIndex,
+                containerColor = MaterialTheme.colorScheme.background,
+                contentColor = MaterialTheme.colorScheme.primary,
+                indicator = { tabPositions ->
+                    TabRowDefaults.SecondaryIndicator(
+                        modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            ) {
+                Tab(
+                    selected = selectedTabIndex == 0,
+                    onClick = { selectedTabIndex = 0 },
+                    text = { Text("Expenses", fontWeight = FontWeight.Bold) }
                 )
-                val totalSpentValue = expenses.sumOf { it.amount }
-                Text(
-                    text = "₹${String.format(Locale.US, "%.2f", totalSpentValue)}",
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Black
-                )
-            }
-        }
-
-        TabRow(
-            selectedTabIndex = selectedTabIndex,
-            containerColor = MaterialTheme.colorScheme.background,
-            contentColor = MaterialTheme.colorScheme.primary,
-            indicator = { tabPositions ->
-                TabRowDefaults.SecondaryIndicator(
-                    modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
-                    color = MaterialTheme.colorScheme.primary
+                Tab(
+                    selected = selectedTabIndex == 1,
+                    onClick = { selectedTabIndex = 1 },
+                    text = { Text("Balances & Settlement", fontWeight = FontWeight.Bold) }
                 )
             }
-        ) {
-            Tab(
-                selected = selectedTabIndex == 0,
-                onClick = { selectedTabIndex = 0 },
-                text = { Text("Expenses", fontWeight = FontWeight.Bold) }
-            )
-            Tab(
-                selected = selectedTabIndex == 1,
-                onClick = { selectedTabIndex = 1 },
-                text = { Text("Balances & Settlement", fontWeight = FontWeight.Bold) }
-            )
-        }
 
-        when (selectedTabIndex) {
-            0 -> SpaceExpensesTab(expenses, members, viewModel)
-            1 -> SpaceBalancesTab(balances, transactions, viewModel)
+            when (selectedTabIndex) {
+                0 -> SpaceExpensesTab(expenses, members, viewModel, onNavigateToAddExpense)
+                1 -> SpaceBalancesTab(balances, transactions, viewModel)
+            }
         }
     }
 }
@@ -1859,7 +1865,8 @@ fun ExpensesOverTimeChart(
 fun ExpenseRow(
     expense: Expense,
     members: List<User>,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onEdit: () -> Unit
 ) {
     val payer = members.find { it.id == expense.paidById }
     val formattedDate = remember(expense.date) {
@@ -1954,7 +1961,26 @@ fun ExpenseRow(
                         fontSize = 16.sp,
                         modifier = Modifier.padding(horizontal = 4.dp)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(16.dp))
+                    if (expense.category != "Settlement") {
+                        IconButton(
+                            onClick = onEdit,
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.05f))
+                                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), CircleShape)
+                                .testTag("edit_expense_${expense.id}")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Edit Expense",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(24.dp))
+                    }
                     IconButton(
                         onClick = onDelete,
                         modifier = Modifier
@@ -1962,6 +1988,7 @@ fun ExpenseRow(
                             .clip(CircleShape)
                             .background(Color.Red.copy(alpha = 0.05f))
                             .border(1.dp, Color.Red.copy(alpha = 0.15f), CircleShape)
+                            .testTag("delete_expense_${expense.id}")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Delete,
@@ -2041,7 +2068,7 @@ fun ExpenseRow(
 }
 
 @Composable
-fun SpaceExpensesTab(expenses: List<Expense>, members: List<User>, viewModel: ExpenseViewModel) {
+fun SpaceExpensesTab(expenses: List<Expense>, members: List<User>, viewModel: ExpenseViewModel, onNavigateToAddExpense: () -> Unit) {
     val context = LocalContext.current
     val wallets by viewModel.allWallets.collectAsStateWithLifecycle(emptyList())
     val activeSpaceState by viewModel.activeSpace.collectAsStateWithLifecycle()
@@ -2123,7 +2150,7 @@ fun SpaceExpensesTab(expenses: List<Expense>, members: List<User>, viewModel: Ex
                         ) {
                             Icon(Icons.Default.TableChart, contentDescription = "", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(13.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Excel", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            Text("XLSX", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                         }
 
                         Button(
@@ -2263,7 +2290,11 @@ fun SpaceExpensesTab(expenses: List<Expense>, members: List<User>, viewModel: Ex
                 ExpenseRow(
                     expense = expense,
                     members = members,
-                    onDelete = { viewModel.deleteExpense(expense.id) }
+                    onDelete = { viewModel.deleteExpense(expense.id) },
+                    onEdit = {
+                        viewModel.startEditingExpense(expense)
+                        onNavigateToAddExpense()
+                    }
                 )
             }
         }
@@ -2277,6 +2308,33 @@ fun SpaceBalancesTab(
     viewModel: ExpenseViewModel
 ) {
     val spaceId by viewModel.activeSpaceId.collectAsStateWithLifecycle()
+    val activeUser by viewModel.currentUser.collectAsStateWithLifecycle()
+    var userToRemove by remember { mutableStateOf<User?>(null) }
+
+    if (userToRemove != null) {
+        AlertDialog(
+            onDismissRequest = { userToRemove = null },
+            title = { Text("Remove Member?") },
+            text = { Text("Removing ${userToRemove!!.name} will delete expenses paid by them and redistribute their remaining splits. This cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        userToRemove?.let { u ->
+                            viewModel.removeUserFromSpaceAndRecalculate(spaceId ?: 0L, u.id)
+                        }
+                        userToRemove = null
+                    }
+                ) {
+                    Text("Remove", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { userToRemove = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -2331,18 +2389,37 @@ fun SpaceBalancesTab(
                         }
                     }
 
-                    Column(horizontalAlignment = Alignment.End) {
-                        val isOwed = balance.netBalance > 0.01
-                        val isSettled = kotlin.math.abs(balance.netBalance) <= 0.01
-                        val sign = if (isSettled) "" else if (isOwed) "+" else "-"
-                        val color = if (isSettled) MaterialTheme.colorScheme.onSurfaceVariant else if (isOwed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Column(horizontalAlignment = Alignment.End) {
+                            val isOwed = balance.netBalance > 0.01
+                            val isSettled = kotlin.math.abs(balance.netBalance) <= 0.01
+                            val sign = if (isSettled) "" else if (isOwed) "+" else "-"
+                            val color = if (isSettled) MaterialTheme.colorScheme.onSurfaceVariant else if (isOwed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                            
+                            Text(
+                                text = if (isSettled) "Settled" else "$sign₹${String.format(Locale.US, "%.2f", kotlin.math.abs(balance.netBalance))}",
+                                color = color,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                        }
                         
-                        Text(
-                            text = if (isSettled) "Settled" else "$sign₹${String.format(Locale.US, "%.2f", kotlin.math.abs(balance.netBalance))}",
-                            color = color,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
+                        if (activeUser != null && balance.user.id != activeUser!!.id) {
+                            IconButton(
+                                onClick = { userToRemove = balance.user },
+                                modifier = Modifier.size(24.dp).testTag("remove_member_${balance.user.id}")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Remove Member",
+                                    tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.8f),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -2454,6 +2531,22 @@ fun AddExpenseScreen(viewModel: ExpenseViewModel, onSaved: () -> Unit) {
     val spaces by viewModel.allSpaces.collectAsStateWithLifecycle()
     val allUsers by viewModel.allUsers.collectAsStateWithLifecycle()
 
+    val editingExpense by viewModel.editingExpense.collectAsStateWithLifecycle()
+    val editingExpenseSplitsFlow = remember(editingExpense) {
+        if (editingExpense != null) {
+            viewModel.getSplitsForExpense(editingExpense!!.id)
+        } else {
+            flowOf(emptyList())
+        }
+    }
+    val editingExpenseSplits by editingExpenseSplitsFlow.collectAsStateWithLifecycle(emptyList())
+
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.clearEditingExpense()
+        }
+    }
+
     var description by remember { mutableStateOf("") }
     var amountText by remember { mutableStateOf("") }
 
@@ -2531,17 +2624,59 @@ fun AddExpenseScreen(viewModel: ExpenseViewModel, onSaved: () -> Unit) {
         }
     }
 
-    // Auto-update default selection
-    LaunchedEffect(spaces) {
-        if (spaces.isNotEmpty() && selectedSpace == null) {
-            selectedSpace = spaces.first()
+    LaunchedEffect(editingExpense, editingExpenseSplits, spaces) {
+        val expense = editingExpense
+        if (expense != null) {
+            description = expense.description
+            amountText = String.format(Locale.US, "%.2f", expense.amount)
+            category = expense.category
+            selectedSpace = spaces.find { it.id == expense.spaceId }
+            selectedPayerId = expense.paidById
+            selectedTimestamp = expense.date
+            selectedWalletId = expense.walletId
+            attachedUris.clear()
+            expense.attachmentUris?.let { attachedUris.addAll(it) }
+
+            if (editingExpenseSplits.isNotEmpty()) {
+                checkedMembers.clear()
+                exactAmounts.clear()
+                percentages.clear()
+                editingExpenseSplits.forEach { split ->
+                    val isParticipating = split.amountOwed > 0.0
+                    checkedMembers[split.userId] = isParticipating
+                    exactAmounts[split.userId] = if (isParticipating) String.format(Locale.US, "%.2f", split.amountOwed) else ""
+                    val pct = if (expense.amount > 0) (split.amountOwed / expense.amount) * 100.0 else 0.0
+                    percentages[split.userId] = if (isParticipating) String.format(Locale.US, "%.1f", pct) else ""
+                }
+                val participatingSplits = editingExpenseSplits.filter { it.amountOwed > 0.0 }
+                val firstOwed = participatingSplits.firstOrNull()?.amountOwed ?: 0.0
+                val allEqual = participatingSplits.all { kotlin.math.abs(it.amountOwed - firstOwed) < 0.02 }
+                if (allEqual) {
+                    selectedTabIndex = 0
+                } else {
+                    selectedTabIndex = 1
+                }
+            }
+        }
+    }
+
+    val activeSpace by viewModel.activeSpace.collectAsStateWithLifecycle()
+
+    // Auto-update default selection to active space if set, otherwise fallback
+    LaunchedEffect(activeSpace, spaces) {
+        if (editingExpense == null) {
+            if (activeSpace != null) {
+                selectedSpace = activeSpace
+            } else if (spaces.isNotEmpty() && selectedSpace == null) {
+                selectedSpace = spaces.first()
+            }
         }
     }
 
     // Load actual group members for split
     val currentSpaceId = selectedSpace?.id
     val spaceMembersFlow = remember(currentSpaceId) {
-        if (currentSpaceId != null) viewModel.activeSpaceMembers else flowOf(emptyList())
+        if (currentSpaceId != null) viewModel.getMembersOfSpace(currentSpaceId) else flowOf(emptyList())
     }
     val spaceMembers by spaceMembersFlow.collectAsStateWithLifecycle(emptyList())
 
@@ -2592,9 +2727,39 @@ fun AddExpenseScreen(viewModel: ExpenseViewModel, onSaved: () -> Unit) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        if (selectedSpace == null) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Please select a space below to associate this expense.",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        }
+
         item {
             Text(
-                text = "Add Bill or Expense",
+                text = if (editingExpense != null) "Edit Bill or Expense" else "Add Bill or Expense",
                 color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold
@@ -2688,7 +2853,7 @@ fun AddExpenseScreen(viewModel: ExpenseViewModel, onSaved: () -> Unit) {
             OutlinedTextField(
                 value = amountText,
                 onValueChange = { amountText = it },
-                label = { Text("Total Amount ($)") },
+                label = { Text("Total Amount (₹)") },
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("amount_input"),
@@ -2697,7 +2862,7 @@ fun AddExpenseScreen(viewModel: ExpenseViewModel, onSaved: () -> Unit) {
                 singleLine = true,
                 leadingIcon = {
                     Text(
-                        text = "?",
+                        text = "₹",
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
@@ -2870,45 +3035,58 @@ fun AddExpenseScreen(viewModel: ExpenseViewModel, onSaved: () -> Unit) {
             }
         }
 
-        // Space selector details
+        // Space selector details (Interactive dropdown when activeSpace == null)
         item {
             Text(
-                text = "Select Settle Space:",
+                text = "Settle Space:",
                 color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(4.dp))
-            ExposedDropdownMenuBox(
-                expanded = spaceExpanded,
-                onExpandedChange = { spaceExpanded = !spaceExpanded }
-            ) {
+            if (activeSpace == null && editingExpense == null) {
+                ExposedDropdownMenuBox(
+                    expanded = spaceExpanded,
+                    onExpandedChange = { spaceExpanded = !spaceExpanded }
+                ) {
+                    OutlinedTextField(
+                        readOnly = true,
+                        value = selectedSpace?.name ?: "Select a Space",
+                        onValueChange = {},
+                        label = { Text("Group/Space") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = spaceExpanded) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor()
+                            .testTag("space_selector"),
+                        colors = darkTextFieldColors
+                    )
+                    ExposedDropdownMenu(
+                        expanded = spaceExpanded,
+                        onDismissRequest = { spaceExpanded = false }
+                    ) {
+                        spaces.forEach { spaceItem ->
+                            DropdownMenuItem(
+                                text = { Text(spaceItem.name) },
+                                onClick = {
+                                    selectedSpace = spaceItem
+                                    spaceExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            } else {
                 OutlinedTextField(
                     readOnly = true,
                     value = selectedSpace?.name ?: "No Space Selected",
                     onValueChange = {},
                     label = { Text("Group/Space") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = spaceExpanded) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .menuAnchor()
                         .testTag("space_selector"),
                     colors = darkTextFieldColors
                 )
-                ExposedDropdownMenu(
-                    expanded = spaceExpanded,
-                    onDismissRequest = { spaceExpanded = false }
-                ) {
-                    spaces.forEach { s ->
-                        DropdownMenuItem(
-                            text = { Text(s.name) },
-                            onClick = {
-                                selectedSpace = s
-                                spaceExpanded = false
-                            }
-                        )
-                    }
-                }
             }
         }
 
@@ -3071,7 +3249,7 @@ fun AddExpenseScreen(viewModel: ExpenseViewModel, onSaved: () -> Unit) {
                                         ) {
                                             Checkbox(
                                                 checked = isChecked,
-                                                onCheckedChange = { checkedMembers[member.id] = it },
+                                                onCheckedChange = null,
                                                 colors = CheckboxDefaults.colors(
                                                     checkedColor = MaterialTheme.colorScheme.primary,
                                                     uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -3343,7 +3521,7 @@ fun AddExpenseScreen(viewModel: ExpenseViewModel, onSaved: () -> Unit) {
                                 OutlinedTextField(
                                     value = nextItemPrice,
                                     onValueChange = { nextItemPrice = it },
-                                    label = { Text("Price ($)", fontSize = 11.sp) },
+                                    label = { Text("Price (₹)", fontSize = 11.sp) },
                                     modifier = Modifier.weight(1.2f).testTag("receipt_item_price_input"),
                                     colors = darkTextFieldColors,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -3474,6 +3652,7 @@ fun AddExpenseScreen(viewModel: ExpenseViewModel, onSaved: () -> Unit) {
                     val pId = selectedPayerId
                     if (description.isNotBlank() && finalAmount > 0.0 && sId != null && pId != null) {
                         val finalUris = attachedUris.toList()
+                        val expenseId = editingExpense?.id ?: 0L
                         when (selectedTabIndex) {
                             0 -> {
                                 val participatingIds = checkedMembers.filter { it.value }.map { it.key }
@@ -3487,7 +3666,8 @@ fun AddExpenseScreen(viewModel: ExpenseViewModel, onSaved: () -> Unit) {
                                     participantIds = targetParticipantIds,
                                     date = selectedTimestamp,
                                     walletId = selectedWalletId,
-                                    attachmentUris = finalUris
+                                    attachmentUris = finalUris,
+                                    expenseId = expenseId
                                 )
                             }
                             1 -> {
@@ -3504,7 +3684,8 @@ fun AddExpenseScreen(viewModel: ExpenseViewModel, onSaved: () -> Unit) {
                                     splitsMap = splitsMap,
                                     date = selectedTimestamp,
                                     walletId = selectedWalletId,
-                                    attachmentUris = finalUris
+                                    attachmentUris = finalUris,
+                                    expenseId = expenseId
                                 )
                             }
                             2 -> {
@@ -3522,7 +3703,8 @@ fun AddExpenseScreen(viewModel: ExpenseViewModel, onSaved: () -> Unit) {
                                     splitsMap = splitsMap,
                                     date = selectedTimestamp,
                                     walletId = selectedWalletId,
-                                    attachmentUris = finalUris
+                                    attachmentUris = finalUris,
+                                    expenseId = expenseId
                                 )
                             }
                             3 -> {
@@ -3546,10 +3728,12 @@ fun AddExpenseScreen(viewModel: ExpenseViewModel, onSaved: () -> Unit) {
                                     splitsMap = splitsMap,
                                     date = selectedTimestamp,
                                     walletId = selectedWalletId,
-                                    attachmentUris = finalUris
+                                    attachmentUris = finalUris,
+                                    expenseId = expenseId
                                 )
                             }
                         }
+                        viewModel.clearEditingExpense()
                         onSaved()
                     }
                 },
@@ -3564,7 +3748,7 @@ fun AddExpenseScreen(viewModel: ExpenseViewModel, onSaved: () -> Unit) {
                     .testTag("submit_expense_button")
             ) {
                 Text(
-                    text = "Save Expense & Split",
+                    text = if (editingExpense != null) "Update Expense & Split" else "Save Expense & Split",
                     color = MaterialTheme.colorScheme.onPrimary,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp
@@ -3581,15 +3765,57 @@ fun ProfileScreen(
     viewModel: ExpenseViewModel,
     onNavigateToCategoryManager: () -> Unit,
     onNavigateToBudgetManager: () -> Unit,
-    onNavigateToSubscriptionManager: () -> Unit
+    onNavigateToSubscriptionManager: () -> Unit,
+    onNavigateToWalletManager: () -> Unit
 ) {
     val activeUser by viewModel.currentUser.collectAsStateWithLifecycle()
     val allUsers by viewModel.allUsers.collectAsStateWithLifecycle()
 
-    var newUsername by remember { mutableStateOf("") }
-    var newUserEmail by remember { mutableStateOf("") }
+    var showEditNameDialog by remember { mutableStateOf(false) }
+    var editNameText by remember { mutableStateOf("") }
 
-    val focusManager = LocalFocusManager.current
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia(),
+        onResult = { uri ->
+            uri?.let {
+                activeUser?.let { user ->
+                    viewModel.updateUserAvatar(user.id, it.toString())
+                }
+            }
+        }
+    )
+
+    if (showEditNameDialog && activeUser != null) {
+        AlertDialog(
+            onDismissRequest = { showEditNameDialog = false },
+            title = { Text("Edit Profile Name") },
+            text = {
+                OutlinedTextField(
+                    value = editNameText,
+                    onValueChange = { editNameText = it },
+                    singleLine = true,
+                    label = { Text("Profile Name") }
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (editNameText.isNotBlank()) {
+                            viewModel.updateUserProfile(activeUser!!.id, editNameText.trim())
+                            showEditNameDialog = false
+                        }
+                    }
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditNameDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -3636,13 +3862,29 @@ fun ProfileScreen(
                             .size(64.dp)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.primary)
+                            .clickable {
+                                photoPickerLauncher.launch(
+                                    androidx.activity.result.PickVisualMediaRequest(
+                                        mediaType = androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
+                                    )
+                                )
+                            }
                     ) {
-                        Text(
-                            text = (activeUser?.name ?: "Guest").take(1).uppercase(),
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 24.sp
-                        )
+                        if (activeUser?.avatarUrl?.isNotBlank() == true) {
+                            coil.compose.AsyncImage(
+                                model = activeUser!!.avatarUrl,
+                                contentDescription = "Profile Picture",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            )
+                        } else {
+                            Text(
+                                text = (activeUser?.name ?: "Guest").take(1).uppercase(),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 24.sp
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.width(16.dp))
                     Column {
@@ -3654,12 +3896,29 @@ fun ProfileScreen(
                             letterSpacing = 1.sp
                         )
                         Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = activeUser?.name ?: "Loading...",
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.Black,
-                            fontSize = 20.sp
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = activeUser?.name ?: "Loading...",
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 20.sp
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            IconButton(
+                                onClick = {
+                                    editNameText = activeUser?.name ?: ""
+                                    showEditNameDialog = true
+                                },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = "Edit Name",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
                         Text(
                             text = activeUser?.email ?: "",
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
@@ -3782,7 +4041,7 @@ fun ProfileScreen(
                             ) {
                                 Icon(Icons.Default.TableChart, contentDescription = "", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(13.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Excel", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                Text("Export XLSX", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                             }
 
                             Button(
@@ -3837,6 +4096,64 @@ fun ProfileScreen(
             }
         }
 
+        // Settings Wallet Manager Navigation Card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onNavigateToWalletManager() }
+                    .testTag("manage_wallets_nav_button")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AccountBalanceWallet,
+                                contentDescription = "Wallets",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column {
+                            Text(
+                                text = "Wallet Manager",
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Add, edit, or delete funding wallets",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = "Navigate",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+
         // Settings Category Manager Navigation Card
         item {
             Card(
@@ -3887,7 +4204,7 @@ fun ProfileScreen(
                         }
                     }
                     Icon(
-                        imageVector = Icons.Default.KeyboardArrowRight,
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                         contentDescription = "Navigate",
                         tint = MaterialTheme.colorScheme.primary
                     )
@@ -3945,7 +4262,7 @@ fun ProfileScreen(
                         }
                     }
                     Icon(
-                        imageVector = Icons.Default.KeyboardArrowRight,
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                         contentDescription = "Navigate",
                         tint = MaterialTheme.colorScheme.primary
                     )
@@ -4003,202 +4320,10 @@ fun ProfileScreen(
                         }
                     }
                     Icon(
-                        imageVector = Icons.Default.KeyboardArrowRight,
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                         contentDescription = "Navigate",
                         tint = MaterialTheme.colorScheme.primary
                     )
-                }
-            }
-        }
-
-        // Register new user locally inside database
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                shape = RoundedCornerShape(24.dp),
-                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.surface,
-                                MaterialTheme.colorScheme.surface
-                            )
-                        )
-                    )
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp)
-                ) {
-                    Text(
-                        text = "Register New Local User",
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
-                    )
-                    Text(
-                        text = "Add users locally to include them in group spaces.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        fontSize = 12.sp
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    OutlinedTextField(
-                        value = newUsername,
-                        onValueChange = { newUsername = it },
-                        label = { Text("Name(s) (e.g. David, Rohan, Priya)") },
-                        placeholder = { Text("Comma-separated for multiple users") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("new_user_name_input"),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                        ),
-                        singleLine = true
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    OutlinedTextField(
-                        value = newUserEmail,
-                        onValueChange = { newUserEmail = it },
-                        label = { Text("Email (optional if multiple; e.g. david@example.com)") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("new_user_email_input"),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                        ),
-                        singleLine = true
-                    )
-
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "Tip: Enter multiple names separated by commas to register them all concurrently.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
-                        fontSize = 11.sp,
-                        lineHeight = 15.sp,
-                        modifier = Modifier.padding(start = 4.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    val isFormValid = newUsername.isNotBlank() && (newUserEmail.isNotBlank() || newUsername.contains(","))
-                    Button(
-                        onClick = {
-                            if (newUsername.isNotBlank()) {
-                                val names = newUsername.split(",").map { it.trim() }.filter { it.isNotEmpty() }
-                                for (name in names) {
-                                    val email = if (names.size == 1 && newUserEmail.isNotBlank()) {
-                                        newUserEmail
-                                    } else {
-                                        "${name.lowercase().replace(" ", "")}@example.com"
-                                    }
-                                    viewModel.createUser(name, email)
-                                }
-                                newUsername = ""
-                                newUserEmail = ""
-                                focusManager.clearFocus()
-                            }
-                        },
-                        enabled = isFormValid,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            disabledContainerColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("submit_user_button")
-                    ) {
-                        Text("Add User(s) to Local System", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-
-        // Switch profile list title
-        item {
-            Text(
-                text = "Switch active profile perspective to:",
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 8.dp)
-            )
-        }
-
-        items(allUsers) { user ->
-            val isCurrent = user.id == activeUser?.id
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(
-                    width = 1.dp,
-                    color = if (isCurrent) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(
-                        if (isCurrent) {
-                            Brush.linearGradient(
-                                colors = listOf(MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.tertiaryContainer)
-                            )
-                        } else {
-                            Brush.linearGradient(
-                                colors = listOf(MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.surface)
-                            )
-                        }
-                    )
-                    .clickable { viewModel.selectCurrentUser(user.id) }
-                    .testTag("profile_item_${user.id}")
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-                    ) {
-                        Text(
-                            text = user.name.take(1).uppercase(),
-                            color = if (isCurrent) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = user.name, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                        Text(text = user.email, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f), fontSize = 12.sp)
-                    }
-                    if (isCurrent) {
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = "Active user profile",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    } else {
-                        IconButton(
-                            onClick = { viewModel.deleteUser(user) },
-                            modifier = Modifier.testTag("delete_user_${user.id}").size(36.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = "Delete User",
-                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.86f),
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
                 }
             }
         }
@@ -4515,7 +4640,7 @@ private fun shareFile(context: Context, file: java.io.File, mimeType: String) {
             type = mimeType
             putExtra(Intent.EXTRA_STREAM, uri)
             putExtra(Intent.EXTRA_SUBJECT, file.name)
-            putExtra(Intent.EXTRA_TEXT, "Here is the requested ledger audit file generated securely by Settle Split.")
+            putExtra(Intent.EXTRA_TEXT, "Here is the requested ledger audit file generated securely by Travel Split.")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         context.startActivity(Intent.createChooser(intent, "Share Export File"))
@@ -4528,6 +4653,7 @@ private fun shareFile(context: Context, file: java.io.File, mimeType: String) {
 /**
  * Interactive fullscreen slideshow on how to use Settle Split with dynamic Compose illustrations.
  */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun OnboardingScreen(
     onUserCreated: (String) -> Unit
@@ -4569,39 +4695,45 @@ fun OnboardingScreen(
             }
         }
 
+        val isKeyboardOpen = WindowInsets.isImeVisible
+        val scrollState = rememberScrollState()
+
         // Slide Content
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .align(Alignment.Center),
+                .align(Alignment.Center)
+                .verticalScroll(scrollState)
+                .padding(top = 48.dp, bottom = 80.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
             // Dynamic Illustration Card
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(240.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                    .padding(16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                when (currentSlide) {
-                    0 -> OnboardingIllustrations.Welcome()
-                    1 -> OnboardingIllustrations.SpacesAndWallets()
-                    2 -> OnboardingIllustrations.ToolsAndAudits()
-                    3 -> OnboardingIllustrations.UserSetup()
+            if (!isKeyboardOpen) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(240.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    when (currentSlide) {
+                        0 -> OnboardingIllustrations.Welcome()
+                        1 -> OnboardingIllustrations.SpacesAndWallets()
+                        2 -> OnboardingIllustrations.ToolsAndAudits()
+                        3 -> OnboardingIllustrations.UserSetup()
+                    }
                 }
+                Spacer(modifier = Modifier.height(32.dp))
             }
-
-            Spacer(modifier = Modifier.height(32.dp))
 
             // Slide Title & Description
             when (currentSlide) {
                 0 -> {
                     Text(
-                        text = "Settle Split Ledger",
+                        text = "Travel Split Ledger",
                         style = MaterialTheme.typography.headlineLarge,
                         fontWeight = FontWeight.Black,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -4609,7 +4741,7 @@ fun OnboardingScreen(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "Welcome to Settle Split. Manage bills, track local wallets, dynamic compound investments, and divide shares among group members seamlessly in Indian Rupees (₹).",
+                        text = "Welcome to Travel Split. Manage bills, track local wallets, dynamic compound investments, and divide shares among group members seamlessly in Indian Rupees (₹).",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,

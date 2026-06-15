@@ -49,6 +49,9 @@ interface ExpenseDao {
     @Query("DELETE FROM space_members WHERE spaceId = :spaceId AND userId = :userId")
     suspend fun deleteSpaceMember(spaceId: Long, userId: Long)
 
+    @Query("DELETE FROM space_members WHERE spaceId = :spaceId")
+    suspend fun deleteSpaceMembers(spaceId: Long)
+
     // --- Expenses ---
     @Query("SELECT * FROM expenses ORDER BY date DESC")
     fun getAllExpenses(): Flow<List<Expense>>
@@ -67,6 +70,12 @@ interface ExpenseDao {
 
     @Query("DELETE FROM expense_splits WHERE expenseId = :expenseId")
     suspend fun deleteSplitsByExpenseId(expenseId: Long)
+
+    @Query("DELETE FROM expenses WHERE spaceId = :spaceId")
+    suspend fun deleteExpensesBySpaceId(spaceId: Long)
+
+    @Query("DELETE FROM expense_splits WHERE expenseId IN (SELECT id FROM expenses WHERE spaceId = :spaceId)")
+    suspend fun deleteSplitsBySpaceId(spaceId: Long)
 
     // --- Expense Splits ---
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -92,6 +101,9 @@ interface ExpenseDao {
     @Delete
     suspend fun deleteWallet(wallet: Wallet)
 
+    @Query("DELETE FROM subscriptions WHERE walletId = :walletId")
+    suspend fun deleteSubscriptionsByWalletId(walletId: Long)
+
     @Query("SELECT * FROM wallets WHERE id = :id")
     suspend fun getWalletById(id: Long): Wallet?
 
@@ -104,6 +116,9 @@ interface ExpenseDao {
 
     @Delete
     suspend fun deleteCategory(category: Category)
+
+    @Query("DELETE FROM budgets WHERE categoryName = :categoryName")
+    suspend fun deleteBudgetsByCategoryName(categoryName: String)
 
     @Query("SELECT * FROM categories WHERE id = :id")
     suspend fun getCategoryById(id: Long): Category?
@@ -140,4 +155,27 @@ interface ExpenseDao {
     // --- Space members sync for worker ---
     @Query("SELECT userId FROM space_members WHERE spaceId = :spaceId")
     suspend fun getMemberIdsOfSpaceSync(spaceId: Long): List<Long>
+
+    // --- All Splits (for dashboard sync) ---
+    @Query("SELECT * FROM expense_splits")
+    fun getAllExpenseSplits(): Flow<List<ExpenseSplit>>
+
+    // --- Cascade user deletion helpers ---
+    @Query("DELETE FROM expense_splits WHERE userId = :userId AND expenseId IN (SELECT id FROM expenses WHERE spaceId = :spaceId)")
+    suspend fun deleteSplitsByUserInSpace(spaceId: Long, userId: Long)
+
+    @Query("SELECT id FROM expenses WHERE spaceId = :spaceId AND paidById = :userId")
+    suspend fun getExpenseIdsPayedByUserInSpace(spaceId: Long, userId: Long): List<Long>
+
+    @Query("SELECT COUNT(*) FROM expense_splits WHERE expenseId = :expenseId")
+    suspend fun getSplitCountForExpense(expenseId: Long): Int
+
+    @Query("SELECT * FROM expenses WHERE spaceId = :spaceId")
+    suspend fun getExpensesInSpaceSync(spaceId: Long): List<Expense>
+
+    @Query("SELECT * FROM expense_splits WHERE expenseId = :expenseId")
+    suspend fun getSplitsForExpenseSync(expenseId: Long): List<ExpenseSplit>
+
+    @Query("UPDATE expense_splits SET amountOwed = :newAmount WHERE id = :splitId")
+    suspend fun updateSplitAmount(splitId: Long, newAmount: Double)
 }

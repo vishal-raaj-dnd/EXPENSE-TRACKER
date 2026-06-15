@@ -1,4 +1,4 @@
-﻿package com.example
+package com.example
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -42,7 +42,7 @@ class MainActivity : ComponentActivity() {
 
         enableEdgeToEdge()
         setContent {
-            val isDarkThemeState = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+            val isDarkThemeState = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(true) }
             MyApplicationTheme(darkTheme = isDarkThemeState.value) {
                 Surface(
                     modifier = Modifier.fillMaxSize()
