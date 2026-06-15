@@ -94,6 +94,7 @@
 | 🎯 **Budget Limits** | Set monthly caps globally or per-category with live tracking |
 | 🔴 **Smart Alerts** | Progress indicator turns 🟠 orange when you hit 80% of limit |
 | 📈 **Spending Chart** | Interactive line chart showing your spending over time |
+| 📊 **Pie Chart Analysis** | Premium donut spending distribution by category rendered next to the line chart |
 | 📂 **Nested Categories** | Parent → Child categories (e.g. Food → Groceries → Vegetables) |
 | 🔄 **Recurring Bills** | Auto-insert Netflix, Rent, etc. on schedule — no manual entry |
 
@@ -122,6 +123,7 @@
 | 🏠 **EMI Calculator** | Monthly loan installment for home/car loans |
 | 📈 **Interest Calculator** | Simple & Compound interest for savings/debt |
 | 🧾 **GST Calculator** | Add or extract tax % from any bill with fully aligned, auto-wrapping layout |
+| 💵 **Cash Counter** | Increment/decrement and edit counts of all currency note denominations with subtotal and sharing features |
 | 💾 **Save as Expense** | One tap to push any calculated amount into Add Expense with an interactive Space Selector dropdown |
 
 <br/>

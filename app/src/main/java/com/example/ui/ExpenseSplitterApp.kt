@@ -254,6 +254,7 @@ fun ExpenseSplitterApp(viewModel: ExpenseViewModel, isDarkTheme: Boolean = true,
                     val items = listOf(
                         NavigationItem("Home", Routes.HOME, Icons.Default.Home, "home_tab"),
                         NavigationItem("Spaces", Routes.SPACES, Icons.Default.Group, "spaces_tab"),
+                        NavigationItem("Add", Routes.ADD_EXPENSE, Icons.Default.Add, "add_tab"),
                         NavigationItem("Tools", Routes.TOOLS, Icons.Default.Calculate, "tools_tab"),
                         NavigationItem("Profile", Routes.PROFILE, Icons.Default.Person, "profile_tab")
                     )
@@ -264,7 +265,7 @@ fun ExpenseSplitterApp(viewModel: ExpenseViewModel, isDarkTheme: Boolean = true,
                             selected = selected,
                             onClick = {
                                 if (currentRoute != item.route) {
-                                    if (item.route != Routes.TOOLS) {
+                                    if (item.route != Routes.TOOLS && item.route != Routes.ADD_EXPENSE) {
                                         viewModel.selectSpace(null)
                                     }
                                     navController.navigate(item.route) {
@@ -1704,13 +1705,27 @@ fun ExpensesOverTimeChart(
                     .fillMaxWidth()
                     .height(140.dp)
                     .pointerInput(chartPoints) {
+                        val w = size.width
+                        val minD = chartPoints.firstOrNull()?.date ?: 0L
+                        val maxD = chartPoints.lastOrNull()?.date ?: 0L
+                        val rangeD = if (maxD == minD) 1L else maxD - minD
+                        val computedPointsX = chartPoints.map { pt ->
+                            val fx = (pt.date - minD).toFloat() / rangeD.toFloat()
+                            fx * w
+                        }
                         awaitPointerEventScope {
                             while (true) {
                                 val event = awaitPointerEvent()
                                 val change = event.changes.firstOrNull()
                                 if (change != null) {
                                     if (change.pressed) {
-                                        touchX = change.position.x
+                                        val curX = change.position.x
+                                        touchX = curX
+                                        if (computedPointsX.isNotEmpty()) {
+                                            activeIdx = computedPointsX.indices.minByOrNull {
+                                                kotlin.math.abs(computedPointsX[it] - curX)
+                                            }
+                                        }
                                         change.consume()
                                     } else {
                                         touchX = null
@@ -1802,13 +1817,9 @@ fun ExpensesOverTimeChart(
                         )
 
                         val currentTouchX = touchX
-                        if (currentTouchX != null) {
-                            val idx = computedPoints.indices.minByOrNull {
-                                kotlin.math.abs(computedPoints[it].x - currentTouchX)
-                            } ?: 0
-                            activeIdx = idx
-
-                            val intersect = computedPoints[idx]
+                        val currentActiveIdx = activeIdx
+                        if (currentTouchX != null && currentActiveIdx != null && currentActiveIdx < computedPoints.size) {
+                            val intersect = computedPoints[currentActiveIdx]
 
                             drawLine(
                                 color = chartCrosshairColor,
@@ -1856,6 +1867,129 @@ fun ExpensesOverTimeChart(
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun CategoryPieChart(
+    expenses: List<Expense>,
+    modifier: Modifier = Modifier
+) {
+    if (expenses.isEmpty()) return
+
+    val categoryTotals = remember(expenses) {
+        expenses.groupBy { it.category }
+            .mapValues { entry -> entry.value.sumOf { it.amount } }
+            .toList()
+            .sortedByDescending { it.second }
+    }
+
+    val total = categoryTotals.sumOf { it.second }
+    if (total <= 0.0) return
+
+    val pieColors = listOf(
+        Color(0xFF2196F3), // Blue
+        Color(0xFF4CAF50), // Green
+        Color(0xFFFF9800), // Orange
+        Color(0xFF9C27B0), // Purple
+        Color(0xFFE91E63), // Pink
+        Color(0xFF00BCD4), // Teal
+        Color(0xFFFFEB3B), // Yellow
+        Color(0xFF795548), // Brown
+        Color(0xFF9E9E9E)  // Gray
+    )
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        shape = RoundedCornerShape(24.dp),
+        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)),
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(MaterialTheme.colorScheme.surface)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "EXPENSES BY CATEGORY",
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Donut Canvas
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.size(130.dp)
+                ) {
+                    Canvas(modifier = Modifier.size(110.dp)) {
+                        var startAngle = -90f
+                        categoryTotals.forEachIndexed { index, (_, amount) ->
+                            val sweepAngle = (amount / total).toFloat() * 360f
+                            drawArc(
+                                color = pieColors[index % pieColors.size],
+                                startAngle = startAngle,
+                                sweepAngle = sweepAngle,
+                                useCenter = false,
+                                style = Stroke(width = 20.dp.toPx(), cap = StrokeCap.Butt)
+                            )
+                            startAngle += sweepAngle
+                        }
+                    }
+                    // Center total label
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Total", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("₹${String.format(Locale.US, "%.0f", total)}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                // Legends
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    categoryTotals.take(5).forEachIndexed { index, (cat, amt) ->
+                        val pct = (amt / total) * 100.0
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .clip(CircleShape)
+                                        .background(pieColors[index % pieColors.size])
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = cat,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Text(
+                                    text = "${String.format(Locale.US, "%.1f", pct)}%",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -2079,138 +2213,6 @@ fun SpaceExpensesTab(expenses: List<Expense>, members: List<User>, viewModel: Ex
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Gorgeous Interactive Chart Header & Component
-        item {
-            ExpensesOverTimeChart(expenses = expenses)
-        }
-
-        // Space Export & Auditing tools card panel
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Assessment,
-                            contentDescription = "Audit Reports",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Auditing & Export Engine",
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Generate and share formatted spreadsheets or professional line-by-line PDF reports instantly.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 11.sp,
-                        lineHeight = 15.sp
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                val currentSpaceObj = activeSpaceState
-                                if (currentSpaceObj != null) {
-                                    val excelFile = com.example.utils.ExportEngine.exportSpaceToExcel(
-                                        context = context,
-                                        spaceName = currentSpaceObj.name,
-                                        expenses = expenses,
-                                        members = members,
-                                        wallets = wallets
-                                    )
-                                    if (excelFile != null) {
-                                        shareFile(context, excelFile, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                                    } else {
-                                        Toast.makeText(context, "Failed to compile Excel sheet", Toast.LENGTH_SHORT).show()
-                                    }
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1f).height(38.dp).testTag("export_space_excel")
-                        ) {
-                            Icon(Icons.Default.TableChart, contentDescription = "", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(13.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("XLSX", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                        }
-
-                        Button(
-                            onClick = {
-                                val currentSpaceObj = activeSpaceState
-                                if (currentSpaceObj != null) {
-                                    val csvFile = com.example.utils.ExportEngine.exportSpaceToCSV(
-                                        context = context,
-                                        spaceName = currentSpaceObj.name,
-                                        expenses = expenses,
-                                        members = members,
-                                        wallets = wallets
-                                    )
-                                    if (csvFile != null) {
-                                        shareFile(context, csvFile, "text/csv")
-                                    } else {
-                                        Toast.makeText(context, "Failed to generate CSV", Toast.LENGTH_SHORT).show()
-                                    }
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                            shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                            modifier = Modifier.weight(1f).height(38.dp).testTag("export_space_csv")
-                        ) {
-                            Icon(Icons.Default.Description, contentDescription = "", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(13.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("CSV", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                        }
-
-                        Button(
-                            onClick = {
-                                val currentSpaceObj = activeSpaceState
-                                if (currentSpaceObj != null) {
-                                    val pdfFile = com.example.utils.ExportEngine.generateSpaceReportPDF(
-                                        context = context,
-                                        spaceName = currentSpaceObj.name,
-                                        expenses = expenses,
-                                        members = members,
-                                        wallets = wallets
-                                    )
-                                    if (pdfFile != null) {
-                                        shareFile(context, pdfFile, "application/pdf")
-                                    } else {
-                                        Toast.makeText(context, "Failed to generate PDF Report", Toast.LENGTH_SHORT).show()
-                                    }
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1.2f).height(38.dp).testTag("export_space_pdf")
-                        ) {
-                            Icon(Icons.Default.PictureAsPdf, contentDescription = "", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(13.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("PDF Report", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                        }
-                    }
-                }
-            }
-        }
 
         item {
             Spacer(modifier = Modifier.height(8.dp))
@@ -2308,13 +2310,25 @@ fun SpaceBalancesTab(
     viewModel: ExpenseViewModel
 ) {
     val spaceId by viewModel.activeSpaceId.collectAsStateWithLifecycle()
+    val space by viewModel.activeSpace.collectAsStateWithLifecycle()
     val activeUser by viewModel.currentUser.collectAsStateWithLifecycle()
+    val expenses by viewModel.activeSpaceExpenses.collectAsStateWithLifecycle()
+    val wallets by viewModel.allWallets.collectAsStateWithLifecycle(emptyList())
+
     var userToRemove by remember { mutableStateOf<User?>(null) }
+    var userToRename by remember { mutableStateOf<User?>(null) }
+    var renameNameText by remember { mutableStateOf("") }
+
+    var summaryExpanded by remember { mutableStateOf(true) }
+    var settleExpanded by remember { mutableStateOf(true) }
+    var membersExpanded by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
 
     if (userToRemove != null) {
         AlertDialog(
             onDismissRequest = { userToRemove = null },
-            title = { Text("Remove Member?") },
+            title = { Text("Remove Member?", fontWeight = FontWeight.Bold) },
             text = { Text("Removing ${userToRemove!!.name} will delete expenses paid by them and redistribute their remaining splits. This cannot be undone.") },
             confirmButton = {
                 TextButton(
@@ -2325,11 +2339,53 @@ fun SpaceBalancesTab(
                         userToRemove = null
                     }
                 ) {
-                    Text("Remove", color = MaterialTheme.colorScheme.error)
+                    Text("Remove", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { userToRemove = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (userToRename != null) {
+        AlertDialog(
+            onDismissRequest = { userToRename = null },
+            title = { Text("Rename Member", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text("Enter a new name for ${userToRename!!.name}:", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = renameNameText,
+                        onValueChange = { renameNameText = it },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                        ),
+                        modifier = Modifier.testTag("rename_member_input")
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (renameNameText.isNotBlank()) {
+                            viewModel.updateUserProfile(userToRename!!.id, renameNameText.trim())
+                            userToRename = null
+                            renameNameText = ""
+                        }
+                    },
+                    enabled = renameNameText.isNotBlank()
+                ) {
+                    Text("Save", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { userToRename = null }) {
                     Text("Cancel")
                 }
             }
@@ -2342,172 +2398,421 @@ fun SpaceBalancesTab(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Members Balances Grid List
+        // Relocated Cumulative line graph
         item {
-            Text(
-                text = "Group Net Balances",
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold
-            )
+            ExpensesOverTimeChart(expenses = expenses)
         }
 
-        items(balances) { balance ->
+        // Relocated Category Pie Chart
+        item {
+            CategoryPieChart(expenses = expenses)
+        }
+
+        // Relocated Auditing & Export Engine
+        item {
             Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(10.dp)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier.padding(14.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-                        ) {
-                            Text(
-                                text = balance.user.name.take(1).uppercase(),
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(text = balance.user.name, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                            Text(
-                                text = "Paid: ₹${String.format(Locale.US, "%.2f", balance.totalPaid)}",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 11.sp
-                            )
-                        }
-                    }
-
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(horizontalAlignment = Alignment.End) {
-                            val isOwed = balance.netBalance > 0.01
-                            val isSettled = kotlin.math.abs(balance.netBalance) <= 0.01
-                            val sign = if (isSettled) "" else if (isOwed) "+" else "-"
-                            val color = if (isSettled) MaterialTheme.colorScheme.onSurfaceVariant else if (isOwed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
-                            
-                            Text(
-                                text = if (isSettled) "Settled" else "$sign₹${String.format(Locale.US, "%.2f", kotlin.math.abs(balance.netBalance))}",
-                                color = color,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
-                        }
-                        
-                        if (activeUser != null && balance.user.id != activeUser!!.id) {
-                            IconButton(
-                                onClick = { userToRemove = balance.user },
-                                modifier = Modifier.size(24.dp).testTag("remove_member_${balance.user.id}")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = "Remove Member",
-                                    tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.8f),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Settlement Center Section
-        item {
-            Text(
-                text = "Settlement Plans (Suggested Payment Flows)",
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 8.dp)
-            )
-        }
-
-        if (transactions.isEmpty()) {
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp)
-                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Assessment,
+                            contentDescription = "Audit Reports",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Everyone is settled! No payments needed.",
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp
+                            text = "Auditing & Export Engine",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
                         )
                     }
-                }
-            }
-        } else {
-            items(transactions) { tx ->
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f)),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Generate and share formatted spreadsheets or professional line-by-line PDF reports instantly.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp,
+                        lineHeight = 15.sp
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = tx.debtor.name,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.secondary
-                                )
-                                Text(
-                                    text = " owes ",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = tx.creditor.name,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Amount: ₹${String.format(Locale.US, "%.2f", tx.amount)}",
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
+                        val activeSpaceState = space
+                        val members = balances.map { it.user }
+                        Button(
+                            onClick = {
+                                val currentSpaceObj = activeSpaceState
+                                if (currentSpaceObj != null) {
+                                    val excelFile = com.example.utils.ExportEngine.exportSpaceToExcel(
+                                        context = context,
+                                        spaceName = currentSpaceObj.name,
+                                        expenses = expenses,
+                                        members = members,
+                                        wallets = wallets
+                                    )
+                                    if (excelFile != null) {
+                                        shareFile(context, excelFile, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                                    } else {
+                                        Toast.makeText(context, "Failed to compile Excel sheet", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1f).height(38.dp).testTag("export_space_excel")
+                        ) {
+                            Icon(Icons.Default.TableChart, contentDescription = "", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(13.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("XLSX", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                         }
 
                         Button(
                             onClick = {
-                                spaceId?.let { sId ->
-                                    viewModel.settleDebt(sId, tx.debtor.id, tx.creditor.id, tx.amount)
+                                val currentSpaceObj = activeSpaceState
+                                if (currentSpaceObj != null) {
+                                    val csvFile = com.example.utils.ExportEngine.exportSpaceToCSV(
+                                        context = context,
+                                        spaceName = currentSpaceObj.name,
+                                        expenses = expenses,
+                                        members = members,
+                                        wallets = wallets
+                                    )
+                                    if (csvFile != null) {
+                                        shareFile(context, csvFile, "text/csv")
+                                    } else {
+                                        Toast.makeText(context, "Failed to generate CSV", Toast.LENGTH_SHORT).show()
+                                    }
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
-                            modifier = Modifier.testTag("settle_button_${tx.debtor.id}_${tx.creditor.id}")
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                            modifier = Modifier.weight(1f).height(38.dp).testTag("export_space_csv")
                         ) {
-                            Text("Settle Up", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Icon(Icons.Default.Description, contentDescription = "", tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(13.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("CSV", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        }
+
+                        Button(
+                            onClick = {
+                                val currentSpaceObj = activeSpaceState
+                                if (currentSpaceObj != null) {
+                                    val pdfFile = com.example.utils.ExportEngine.generateSpaceReportPDF(
+                                        context = context,
+                                        spaceName = currentSpaceObj.name,
+                                        expenses = expenses,
+                                        members = members,
+                                        wallets = wallets
+                                    )
+                                    if (pdfFile != null) {
+                                        shareFile(context, pdfFile, "application/pdf")
+                                    } else {
+                                        Toast.makeText(context, "Failed to generate PDF Report", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1.2f).height(38.dp).testTag("export_space_pdf")
+                        ) {
+                            Icon(Icons.Default.PictureAsPdf, contentDescription = "", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(13.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("PDF Report", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Summary Card Section
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { summaryExpanded = !summaryExpanded },
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Summary",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Icon(
+                            imageVector = if (summaryExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Toggle Summary",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    
+                    if (summaryExpanded) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        balances.forEach { balance ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = balance.user.name,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = "Charged ₹${String.format(Locale.US, "%.2f", balance.totalOwed)}, Paid ₹${String.format(Locale.US, "%.2f", balance.totalPaid)}",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                        fontSize = 11.sp
+                                    )
+                                }
+                                
+                                val isOwed = balance.netBalance > 0.01
+                                val isSettled = kotlin.math.abs(balance.netBalance) <= 0.01
+                                val sign = if (isSettled) "" else if (isOwed) "+" else "-"
+                                val color = if (isSettled) MaterialTheme.colorScheme.onSurfaceVariant else if (isOwed) Color(0xFF1B5E20) else Color.Red
+                                val displayText = if (isSettled) "Settled" else "${sign}₹${String.format(Locale.US, "%.2f", kotlin.math.abs(balance.netBalance))}"
+                                
+                                Text(
+                                    text = displayText,
+                                    color = color,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
+                                )
+                            }
+                            if (balance != balances.last()) {
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), thickness = 0.5.dp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // How to settle Card Section
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { settleExpanded = !settleExpanded },
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "How to settle?",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Icon(
+                            imageVector = if (settleExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Toggle Settlement Plans",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    if (settleExpanded) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        if (transactions.isEmpty()) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 12.dp)
+                            ) {
+                                Text(
+                                    text = "Everyone is settled! No payments needed.",
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp
+                                )
+                            }
+                        } else {
+                            transactions.forEach { tx ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = tx.debtor.name,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = "should pay to ${tx.creditor.name}",
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                            fontSize = 11.sp,
+                                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                                        )
+                                    }
+                                    
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Text(
+                                            text = "₹${String.format(Locale.US, "%.2f", tx.amount)}",
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp
+                                        )
+                                        Button(
+                                            onClick = {
+                                                spaceId?.let { sId ->
+                                                    viewModel.settleDebt(sId, tx.debtor.id, tx.creditor.id, tx.amount)
+                                                }
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                                            modifier = Modifier.height(32.dp).testTag("settle_button_${tx.debtor.id}_${tx.creditor.id}"),
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                            shape = RoundedCornerShape(6.dp)
+                                        ) {
+                                            Text("Settle Up", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                        }
+                                    }
+                                }
+                                if (tx != transactions.last()) {
+                                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), thickness = 0.5.dp)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Group Members modification management section
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { membersExpanded = !membersExpanded },
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Group Members Management",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Icon(
+                            imageVector = if (membersExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Toggle Members List",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    if (membersExpanded) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        balances.forEach { balance ->
+                            val member = balance.user
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                                    ) {
+                                        Text(
+                                            text = member.name.take(1).uppercase(),
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        text = member.name,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    IconButton(
+                                        onClick = { userToRename = member; renameNameText = member.name },
+                                        modifier = Modifier.size(32.dp).testTag("edit_member_${member.id}")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Edit,
+                                            contentDescription = "Rename Member",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                    if (activeUser != null && member.id != activeUser!!.id) {
+                                        IconButton(
+                                            onClick = { userToRemove = member },
+                                            modifier = Modifier.size(32.dp).testTag("remove_member_${member.id}")
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = "Remove Member",
+                                                tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.8f),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            if (balance != balances.last()) {
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), thickness = 0.5.dp)
+                            }
                         }
                     }
                 }
@@ -2720,6 +3025,10 @@ fun AddExpenseScreen(viewModel: ExpenseViewModel, onSaved: () -> Unit) {
         unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
         cursorColor = MaterialTheme.colorScheme.primary
     )
+
+    val isDark = MaterialTheme.colorScheme.background.let { it.red + it.green + it.blue < 1.5f }
+    val contrastGreen = if (isDark) Color(0xFF4CAF50) else Color(0xFF1B5E20)
+    val contrastYellow = if (isDark) Color(0xFFFFEB3B) else Color(0xFFE65100)
 
     LazyColumn(
         modifier = Modifier
@@ -3377,11 +3686,11 @@ fun AddExpenseScreen(viewModel: ExpenseViewModel, onSaved: () -> Unit) {
                                             Text(
                                                 text = "Unassigned: ₹${String.format(Locale.US, "%.2f", difference)}",
                                                 fontSize = 12.sp,
-                                                color = if (difference > 0) Color.Yellow else Color.Red,
+                                                color = if (difference > 0) contrastYellow else Color.Red,
                                                 fontWeight = FontWeight.SemiBold
                                             )
                                         } else {
-                                            Text(text = "Matches Total!", fontSize = 12.sp, color = Color.Green, fontWeight = FontWeight.SemiBold)
+                                            Text(text = "Matches Total!", fontSize = 12.sp, color = contrastGreen, fontWeight = FontWeight.SemiBold)
                                         }
                                     }
                                 }
@@ -3483,11 +3792,11 @@ fun AddExpenseScreen(viewModel: ExpenseViewModel, onSaved: () -> Unit) {
                                             Text(
                                                 text = "Remaining: ${String.format(Locale.US, "%.1f", diffPct)}%",
                                                 fontSize = 12.sp,
-                                                color = if (diffPct > 0) Color.Yellow else Color.Red,
+                                                color = if (diffPct > 0) contrastYellow else Color.Red,
                                                 fontWeight = FontWeight.SemiBold
                                             )
                                         } else {
-                                            Text(text = "Matches 100%!", fontSize = 12.sp, color = Color.Green, fontWeight = FontWeight.SemiBold)
+                                            Text(text = "Matches 100%!", fontSize = 12.sp, color = contrastGreen, fontWeight = FontWeight.SemiBold)
                                         }
                                     }
                                 }

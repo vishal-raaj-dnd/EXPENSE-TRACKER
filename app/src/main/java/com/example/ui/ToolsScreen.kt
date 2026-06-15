@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -28,6 +29,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.util.Locale
 import android.widget.Toast
+import android.content.Intent
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.text.style.TextAlign
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,7 +41,7 @@ fun ToolsScreen(
 ) {
     val context = LocalContext.current
     var selectedTab by remember { mutableStateOf(0) }
-    val tabTitles = listOf("EMI Loan", "Interest", "GST / Tax")
+    val tabTitles = listOf("EMI Loan", "Interest", "GST / Tax", "Cash Counter")
 
     Column(
         modifier = Modifier
@@ -110,6 +114,7 @@ fun ToolsScreen(
                 0 -> EmiCalculatorPanel(viewModel, onNavigateToAddExpense)
                 1 -> InterestCalculatorPanel(viewModel, onNavigateToAddExpense)
                 2 -> GstCalculatorPanel(viewModel, onNavigateToAddExpense)
+                3 -> CashCalculatorPanel()
             }
         }
     }
@@ -302,7 +307,7 @@ fun EmiCalculatorPanel(
                         .height(48.dp)
                         .testTag("emi_save_expense_btn")
                 ) {
-                    Icon(Icons.Default.SaveAlt, contentDescription = "", tint = MaterialTheme.colorScheme.onPrimary)
+                    Icon(Icons.Default.Add, contentDescription = "", tint = MaterialTheme.colorScheme.onPrimary)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Save EMI as Expense", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
                 }
@@ -327,7 +332,7 @@ fun EmiCalculatorPanel(
                         .height(48.dp)
                         .testTag("emi_save_total_btn")
                 ) {
-                    Icon(Icons.Default.CloudSync, contentDescription = "", tint = MaterialTheme.colorScheme.onSurface)
+                    Icon(Icons.Default.Add, contentDescription = "", tint = MaterialTheme.colorScheme.onSurface)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Save Loan Sum as Expense", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
                 }
@@ -602,7 +607,7 @@ fun InterestCalculatorPanel(
                         .height(48.dp)
                         .testTag("interest_save_expense_btn")
                 ) {
-                    Icon(Icons.Default.SaveAlt, contentDescription = "", tint = MaterialTheme.colorScheme.onPrimary)
+                    Icon(Icons.Default.Add, contentDescription = "", tint = MaterialTheme.colorScheme.onPrimary)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Save Yield (Interest) as Expense", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
                 }
@@ -627,7 +632,7 @@ fun InterestCalculatorPanel(
                         .height(48.dp)
                         .testTag("interest_save_total_btn")
                 ) {
-                    Icon(Icons.Default.CloudSync, contentDescription = "", tint = MaterialTheme.colorScheme.onSurface)
+                    Icon(Icons.Default.Add, contentDescription = "", tint = MaterialTheme.colorScheme.onSurface)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Save Accrued Sum as Expense", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
                 }
@@ -875,7 +880,7 @@ fun GstCalculatorPanel(
                         .height(48.dp)
                         .testTag("gst_save_total_btn")
                 ) {
-                    Icon(Icons.Default.SaveAlt, contentDescription = "", tint = MaterialTheme.colorScheme.onPrimary)
+                    Icon(Icons.Default.Add, contentDescription = "", tint = MaterialTheme.colorScheme.onPrimary)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Save Total (Tax-Inclusive) as Expense", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
                 }
@@ -900,13 +905,253 @@ fun GstCalculatorPanel(
                         .height(48.dp)
                         .testTag("gst_save_tax_btn")
                 ) {
-                    Icon(Icons.Default.CloudSync, contentDescription = "", tint = MaterialTheme.colorScheme.onSurface)
+                    Icon(Icons.Default.Add, contentDescription = "", tint = MaterialTheme.colorScheme.onSurface)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Save Tax Amount purely as Expense", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
                 }
             }
         }
         item {
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
+@Composable
+fun CashCalculatorPanel() {
+    val context = LocalContext.current
+    val denominations = listOf(2000, 500, 200, 100, 50, 20, 10, 5, 2, 1)
+    val countTextMap = remember { mutableStateMapOf<Int, String>().apply { denominations.forEach { put(it, "") } } }
+
+    val counts = denominations.associateWith { countTextMap[it]?.toIntOrNull() ?: 0 }
+    val subtotals = denominations.associateWith { it * (counts[it] ?: 0) }
+    val grandTotal = subtotals.values.sum()
+    val totalNotes = counts.values.sum()
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "GRAND TOTAL AMOUNT",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            letterSpacing = 1.2.sp
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "₹${String.format(Locale.US, "%,d", grandTotal)}",
+                            fontSize = 32.sp,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+        }
+
+        items(denominations) { denom ->
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f)),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.width(90.dp)
+                    ) {
+                        Text(
+                            text = "₹$denom",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "X",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        // Decrement Button
+                        OutlinedButton(
+                            onClick = {
+                                val current = countTextMap[denom]?.toIntOrNull() ?: 0
+                                if (current > 0) {
+                                    countTextMap[denom] = (current - 1).toString()
+                                } else {
+                                    countTextMap[denom] = ""
+                                }
+                            },
+                            contentPadding = PaddingValues(0.dp),
+                            modifier = Modifier.size(32.dp),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text("-", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                        }
+
+                        // Editable Input
+                        BasicTextField(
+                            value = countTextMap[denom] ?: "",
+                            onValueChange = { newVal ->
+                                if (newVal.isEmpty() || newVal.all { it.isDigit() }) {
+                                    countTextMap[denom] = newVal
+                                }
+                            },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                textAlign = TextAlign.Center,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            ),
+                            modifier = Modifier
+                                .width(56.dp)
+                                .height(32.dp)
+                                .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(6.dp))
+                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+                                .wrapContentHeight(Alignment.CenterVertically)
+                        )
+
+                        // Increment Button
+                        OutlinedButton(
+                            onClick = {
+                                val current = countTextMap[denom]?.toIntOrNull() ?: 0
+                                countTextMap[denom] = (current + 1).toString()
+                            },
+                            contentPadding = PaddingValues(0.dp),
+                            modifier = Modifier.size(32.dp),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text("+", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                        }
+                    }
+
+                    Text(
+                        text = "=",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+
+                    val sub = subtotals[denom] ?: 0
+                    Text(
+                        text = if (sub > 0) "₹${String.format(Locale.US, "%,d", sub)}" else "—",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = if (sub > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.width(100.dp),
+                        textAlign = TextAlign.End
+                    )
+                }
+            }
+        }
+
+        // Subtotal / Note counts card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.03f)),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("Total Note Count", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("$totalNotes Notes", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("Grand Value Sum", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("₹${String.format(Locale.US, "%,d", grandTotal)}", fontSize = 16.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+        }
+
+        // Buttons
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Button(
+                    onClick = {
+                        denominations.forEach { countTextMap[it] = "" }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    modifier = Modifier.weight(1f).height(46.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                ) {
+                    Text("Delete", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                }
+                Button(
+                    onClick = {
+                        if (grandTotal > 0) {
+                            val sb = StringBuilder()
+                            sb.append("💵 Cash Counter Breakdown 💵\n\n")
+                            denominations.forEach { denom ->
+                                val qty = counts[denom] ?: 0
+                                if (qty > 0) {
+                                    sb.append("₹$denom x $qty = ₹${String.format(Locale.US, "%,d", subtotals[denom])}\n")
+                                }
+                            }
+                            sb.append("-----------------------------\n")
+                            sb.append("Total Items: $totalNotes Notes/Coins\n")
+                            sb.append("Grand Total: ₹${String.format(Locale.US, "%,d", grandTotal)}")
+
+                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_TEXT, sb.toString())
+                            }
+                            context.startActivity(Intent.createChooser(shareIntent, "Share Cash Counter Breakdown"))
+                        } else {
+                            Toast.makeText(context, "Enter some denomination counts first", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    modifier = Modifier.weight(1f).height(46.dp),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Share", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+                }
+            }
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
