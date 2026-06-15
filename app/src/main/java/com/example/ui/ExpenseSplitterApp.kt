@@ -1091,9 +1091,13 @@ fun SpacesScreen(viewModel: ExpenseViewModel, onNavigateToAddExpense: () -> Unit
         ) { innerPadding ->
             LazyColumn(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(16.dp),
+                    .fillMaxSize(),
+                contentPadding = PaddingValues(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = 16.dp,
+                    bottom = innerPadding.calculateBottomPadding() + 16.dp
+                ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item {
@@ -1417,17 +1421,8 @@ fun SpaceDetailScreen(viewModel: ExpenseViewModel, onNavigateToAddExpense: () ->
     }
 
     Scaffold(
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { onNavigateToAddExpense() },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.testTag("add_expense_fab")
-            ) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "Add Expense")
-            }
-        },
-        containerColor = Color.Transparent
+        containerColor = Color.Transparent,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { innerPadding ->
         Column(
             modifier = Modifier
