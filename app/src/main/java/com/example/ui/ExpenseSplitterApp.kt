@@ -54,6 +54,8 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.StrokeCap
@@ -1062,187 +1064,188 @@ fun SpacesScreen(viewModel: ExpenseViewModel, onNavigateToAddExpense: () -> Unit
                 showCameraScanner = false
             }
         )
-    }
-    if (spaceToShare != null) {
-        ShareSpaceDialog(
-            spaceId = spaceToShare!!.id,
-            viewModel = viewModel,
-            onDismiss = { spaceToShare = null }
-        )
-    }
-    if (activeSpaceId != null) {
-        // Render Detail View
-        SpaceDetailScreen(viewModel, onNavigateToAddExpense)
     } else {
-        // Render List of Spaces
-        Scaffold(
-            floatingActionButton = {
-                FloatingActionButton(
-                    onClick = { showCreateSpaceDialog = true },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.testTag("create_space_fab")
-                ) {
-                    Icon(imageVector = Icons.Default.Add, contentDescription = "Create Group")
-                }
-            },
-            containerColor = Color.Transparent,
-            contentWindowInsets = WindowInsets(0, 0, 0, 0)
-        ) { innerPadding ->
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize(),
-                contentPadding = PaddingValues(
-                    start = 16.dp,
-                    end = 16.dp,
-                    top = 16.dp,
-                    bottom = innerPadding.calculateBottomPadding() + 16.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+        if (spaceToShare != null) {
+            ShareSpaceDialog(
+                spaceId = spaceToShare!!.id,
+                viewModel = viewModel,
+                onDismiss = { spaceToShare = null }
+            )
+        }
+        if (activeSpaceId != null) {
+            // Render Detail View
+            SpaceDetailScreen(viewModel, onNavigateToAddExpense)
+        } else {
+            // Render List of Spaces
+            Scaffold(
+                floatingActionButton = {
+                    FloatingActionButton(
+                        onClick = { showCreateSpaceDialog = true },
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.testTag("create_space_fab")
                     ) {
-                        Text(
-                            text = "Expense Split Spaces",
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        IconButton(
-                            onClick = {
-                                if (hasCameraPermission) {
-                                    showCameraScanner = true
-                                } else {
-                                    cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
-                                }
-                            },
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-                                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), CircleShape)
-                                .testTag("scan_to_join_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.QrCodeScanner,
-                                contentDescription = "Scan to Join",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
+                        Icon(imageVector = Icons.Default.Add, contentDescription = "Create Group")
                     }
-                }
-
-                if (spaces.isEmpty()) {
+                },
+                containerColor = Color.Transparent,
+                contentWindowInsets = WindowInsets(0, 0, 0, 0)
+            ) { innerPadding ->
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = 16.dp,
+                        bottom = innerPadding.calculateBottomPadding() + 16.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     item {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 64.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Group,
-                                contentDescription = "",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(48.dp)
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
                             Text(
-                                text = "No spaces setup yet.",
+                                text = "Expense Split Spaces",
                                 color = MaterialTheme.colorScheme.onSurface,
-                                fontWeight = FontWeight.Bold
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold,
                             )
-                            Text(
-                                text = "Create a space (e.g. flatmates, trip) using the + button to start sharing bills!",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 24.dp),
-                                style = MaterialTheme.typography.bodyMedium
-                            )
+                            IconButton(
+                                onClick = {
+                                    if (hasCameraPermission) {
+                                        showCameraScanner = true
+                                    } else {
+                                        cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                                    }
+                                },
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                                    .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), CircleShape)
+                                    .testTag("scan_to_join_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.QrCodeScanner,
+                                    contentDescription = "Scan to Join",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                         }
                     }
-                } else {
-                    items(spaces) { space ->
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                            shape = RoundedCornerShape(16.dp),
-                            border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(
-                                    Brush.linearGradient(
-                                        colors = listOf(
-                                            MaterialTheme.colorScheme.surface,
-                                            MaterialTheme.colorScheme.surface
+
+                    if (spaces.isEmpty()) {
+                        item {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 64.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Group,
+                                    contentDescription = "",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(48.dp)
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = "No spaces setup yet.",
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Create a space (e.g. flatmates, trip) using the + button to start sharing bills!",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 24.dp),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                        }
+                    } else {
+                        items(spaces) { space ->
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                                shape = RoundedCornerShape(16.dp),
+                                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(
+                                        Brush.linearGradient(
+                                            colors = listOf(
+                                                MaterialTheme.colorScheme.surface,
+                                                MaterialTheme.colorScheme.surface
+                                            )
                                         )
                                     )
-                                )
-                                .clickable { viewModel.selectSpace(space.id) }
-                                .testTag("space_item_${space.id}")
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
+                                    .clickable { viewModel.selectSpace(space.id) }
+                                    .testTag("space_item_${space.id}")
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = space.name,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            fontSize = 18.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            IconButton(
+                                                onClick = { spaceToShare = space },
+                                                modifier = Modifier.testTag("share_space_item_${space.id}")
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Share,
+                                                    contentDescription = "Share Space / QR",
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                            IconButton(
+                                                onClick = { viewModel.deleteSpace(space) },
+                                                modifier = Modifier.testTag("delete_space_${space.id}")
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Delete,
+                                                    contentDescription = "Delete Space",
+                                                    tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.8f)
+                                                )
+                                            }
+                                        }
+                                    }
                                     Text(
-                                        text = space.name,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold
+                                        text = space.description,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 13.sp
                                     )
+                                    Spacer(modifier = Modifier.height(8.dp))
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        IconButton(
-                                            onClick = { spaceToShare = space },
-                                            modifier = Modifier.testTag("share_space_item_${space.id}")
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Share,
-                                                contentDescription = "Share Space / QR",
-                                                tint = MaterialTheme.colorScheme.primary
-                                            )
-                                        }
-                                        IconButton(
-                                            onClick = { viewModel.deleteSpace(space) },
-                                            modifier = Modifier.testTag("delete_space_${space.id}")
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Delete,
-                                                contentDescription = "Delete Space",
-                                                tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.8f)
-                                            )
-                                        }
+                                        Icon(
+                                            imageVector = Icons.Default.People,
+                                            contentDescription = "Members",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "View details and settlement plans",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
                                     }
-                                }
-                                Text(
-                                    text = space.description,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 13.sp
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.People,
-                                        contentDescription = "Members",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "View details and settlement plans",
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
                                 }
                             }
                         }
@@ -2154,40 +2157,10 @@ fun ExpenseRow(
                         }
 
                         if (isExpanded) {
-                            Dialog(onDismissRequest = { isExpanded = false }) {
-                                Card(
-                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp)
-                                ) {
-                                    Column(
-                                        modifier = Modifier.padding(16.dp),
-                                        horizontalAlignment = Alignment.CenterHorizontally
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text("Receipt Attachment", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                            IconButton(onClick = { isExpanded = false }, modifier = Modifier.size(28.dp)) {
-                                                Icon(Icons.Default.Close, contentDescription = "Close", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-                                            }
-                                        }
-                                        Spacer(modifier = Modifier.height(12.dp))
-                                        AsyncImage(
-                                            model = uriStr,
-                                            contentDescription = "Receipt Detail",
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .heightIn(max = 420.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                        )
-                                    }
-                                }
-                            }
+                            ZoomableImageDialog(
+                                uriStr = uriStr,
+                                onDismiss = { isExpanded = false }
+                            )
                         }
                     }
                 }
@@ -2456,7 +2429,9 @@ fun SpaceBalancesTab(
                                         spaceName = currentSpaceObj.name,
                                         expenses = expenses,
                                         members = members,
-                                        wallets = wallets
+                                        wallets = wallets,
+                                        balances = balances,
+                                        settlements = transactions
                                     )
                                     if (excelFile != null) {
                                         shareFile(context, excelFile, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
@@ -2511,7 +2486,9 @@ fun SpaceBalancesTab(
                                         spaceName = currentSpaceObj.name,
                                         expenses = expenses,
                                         members = members,
-                                        wallets = wallets
+                                        wallets = wallets,
+                                        balances = balances,
+                                        settlements = transactions
                                     )
                                     if (pdfFile != null) {
                                         shareFile(context, pdfFile, "application/pdf")
@@ -2873,6 +2850,65 @@ fun AddExpenseScreen(viewModel: ExpenseViewModel, onSaved: () -> Unit) {
 
     // Secure local photo attachments state
     val attachedUris = remember { mutableStateListOf<String>() }
+    var zoomTargetUri by remember { mutableStateOf<String?>(null) }
+    var tempPhotoFile by remember { mutableStateOf<java.io.File?>(null) }
+
+    var hasCameraPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.CAMERA
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    var showAttachmentSourceDialog by remember { mutableStateOf(false) }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture(),
+        onResult = { success ->
+            if (success) {
+                tempPhotoFile?.let { file ->
+                    val persistentFile = java.io.File(context.filesDir, "bill_cam_${System.currentTimeMillis()}.jpg")
+                    try {
+                        file.inputStream().use { input ->
+                            persistentFile.outputStream().use { output ->
+                                input.copyTo(output)
+                            }
+                        }
+                        attachedUris.add(android.net.Uri.fromFile(persistentFile).toString())
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            }
+        }
+    )
+
+    val launchCameraDirectly = {
+        try {
+            val tempFile = java.io.File(context.cacheDir, "temp_capture_${System.currentTimeMillis()}.jpg")
+            tempPhotoFile = tempFile
+            val authority = "${context.packageName}.fileprovider"
+            val uri = androidx.core.content.FileProvider.getUriForFile(context, authority, tempFile)
+            cameraLauncher.launch(uri)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(context, "Camera launch failed: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasCameraPermission = isGranted
+        if (isGranted) {
+            launchCameraDirectly()
+        } else {
+            Toast.makeText(context, "Camera permission is required to take photos of bills.", Toast.LENGTH_LONG).show()
+        }
+    }
+
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia(5),
         onResult = { uris ->
@@ -3251,23 +3287,65 @@ fun AddExpenseScreen(viewModel: ExpenseViewModel, onSaved: () -> Unit) {
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    if (attachedUris.size < 5) {
-                        TextButton(
+                }
+                
+                if (attachedUris.size < 5) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Gallery button
+                        OutlinedButton(
                             onClick = {
                                 photoPickerLauncher.launch(
                                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                                 )
                             },
-                            modifier = Modifier.testTag("attach_bill_trigger")
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(38.dp)
+                                .testTag("attach_bill_trigger")
                         ) {
                             Icon(
-                                imageVector = Icons.Default.AttachFile,
-                                contentDescription = "Add Attachment",
+                                imageVector = Icons.Default.PhotoLibrary,
+                                contentDescription = "Gallery",
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(16.dp)
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Add", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Gallery", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        }
+
+                        // Camera button
+                        OutlinedButton(
+                            onClick = {
+                                if (hasCameraPermission) {
+                                    launchCameraDirectly()
+                                } else {
+                                    cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                                }
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(38.dp)
+                                .testTag("camera_bill_trigger")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PhotoCamera,
+                                contentDescription = "Camera",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Camera", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -3283,9 +3361,7 @@ fun AddExpenseScreen(viewModel: ExpenseViewModel, onSaved: () -> Unit) {
                             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
                             .clickable {
                                 if (attachedUris.size < 5) {
-                                    photoPickerLauncher.launch(
-                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                    )
+                                    showAttachmentSourceDialog = true
                                 }
                             },
                         contentAlignment = Alignment.Center
@@ -3307,6 +3383,7 @@ fun AddExpenseScreen(viewModel: ExpenseViewModel, onSaved: () -> Unit) {
                                     .size(72.dp)
                                     .clip(RoundedCornerShape(10.dp))
                                     .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+                                    .clickable { zoomTargetUri = uriStr }
                             ) {
                                 AsyncImage(
                                     model = uriStr,
@@ -3335,6 +3412,47 @@ fun AddExpenseScreen(viewModel: ExpenseViewModel, onSaved: () -> Unit) {
                             }
                         }
                     }
+                }
+                
+                if (zoomTargetUri != null) {
+                    ZoomableImageDialog(
+                        uriStr = zoomTargetUri!!,
+                        onDismiss = { zoomTargetUri = null }
+                    )
+                }
+
+                if (showAttachmentSourceDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showAttachmentSourceDialog = false },
+                        title = { Text("Attach Bill / Receipt") },
+                        text = { Text("Choose how you want to add the receipt attachment:") },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    showAttachmentSourceDialog = false
+                                    if (hasCameraPermission) {
+                                        launchCameraDirectly()
+                                    } else {
+                                        cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                                    }
+                                }
+                            ) {
+                                Text("Use Camera")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(
+                                onClick = {
+                                    showAttachmentSourceDialog = false
+                                    photoPickerLauncher.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                    )
+                                }
+                            ) {
+                                Text("From Gallery")
+                            }
+                        }
+                    )
                 }
             }
         }
@@ -4915,6 +5033,89 @@ fun ShareSpaceDialog(
     }
 }
 
+@Composable
+fun ZoomableImageDialog(
+    uriStr: String,
+    onDismiss: () -> Unit
+) {
+    var scale by remember { mutableStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Receipt Attachment (Pinch/Drag)",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(380.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.Black.copy(alpha = 0.05f))
+                        .pointerInput(Unit) {
+                            detectTransformGestures { _, pan, zoom, _ ->
+                                scale = (scale * zoom).coerceIn(1f, 5f)
+                                if (scale > 1f) {
+                                    val maxOffsetX = (size.width * (scale - 1)) / 2
+                                    val maxOffsetY = (size.height * (scale - 1)) / 2
+                                    offset = Offset(
+                                        (offset.x + pan.x).coerceIn(-maxOffsetX, maxOffsetX),
+                                        (offset.y + pan.y).coerceIn(-maxOffsetY, maxOffsetY)
+                                    )
+                                } else {
+                                    offset = Offset.Zero
+                                }
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    AsyncImage(
+                        model = uriStr,
+                        contentDescription = "Receipt Detail",
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer(
+                                scaleX = scale,
+                                scaleY = scale,
+                                translationX = offset.x,
+                                translationY = offset.y
+                            )
+                    )
+                }
+            }
+        }
+    }
+}
+
 /**
  * Copy visual media files to local storage to maintain persistence and prevent dynamic URI permission expiration
  */
@@ -4979,6 +5180,7 @@ fun OnboardingScreen(
                     )
                 )
             )
+            .systemBarsPadding()
             .padding(24.dp)
             .imePadding()
     ) {

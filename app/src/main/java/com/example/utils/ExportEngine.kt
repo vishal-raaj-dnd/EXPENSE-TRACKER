@@ -8,6 +8,8 @@ import android.graphics.pdf.PdfDocument
 import com.example.data.Expense
 import com.example.data.User
 import com.example.data.Wallet
+import com.example.ui.ExpenseViewModel.MemberBalance
+import com.example.ui.ExpenseViewModel.SettlementTransaction
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -101,7 +103,9 @@ object ExportEngine {
         spaceName: String,
         expenses: List<Expense>,
         members: List<User>,
-        wallets: List<Wallet>
+        wallets: List<Wallet>,
+        balances: List<MemberBalance>,
+        settlements: List<SettlementTransaction>
     ): File {
         val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
         val rows = mutableListOf<List<String>>()
@@ -130,6 +134,35 @@ object ExportEngine {
 
         rows.add(emptyList()) // blank row
         rows.add(listOf("", "", "", "TOTAL SPENT:", totalAmount.toString()))
+
+        // Append Member Balances Section
+        rows.add(emptyList())
+        rows.add(listOf("MEMBER NET BALANCES"))
+        rows.add(listOf("Member Name", "Total Paid (₹)", "Total Owed (₹)", "Net Balance (₹)"))
+        balances.forEach { b ->
+            rows.add(listOf(
+                b.user.name,
+                b.totalPaid.toString(),
+                b.totalOwed.toString(),
+                b.netBalance.toString()
+            ))
+        }
+
+        // Append Settlement Plan Section
+        rows.add(emptyList())
+        rows.add(listOf("SETTLEMENT PLAN (DEBT SIMPLIFICATION)"))
+        rows.add(listOf("From (Debtor)", "To (Creditor)", "Amount to Pay (₹)"))
+        if (settlements.isEmpty()) {
+            rows.add(listOf("All settled up!", "", ""))
+        } else {
+            settlements.forEach { s ->
+                rows.add(listOf(
+                    s.debtor.name,
+                    s.creditor.name,
+                    s.amount.toString()
+                ))
+            }
+        }
 
         return writeXlsxFile(
             context,
@@ -241,7 +274,9 @@ object ExportEngine {
         spaceName: String,
         expenses: List<Expense>,
         members: List<User>,
-        wallets: List<Wallet>
+        wallets: List<Wallet>,
+        balances: List<MemberBalance>,
+        settlements: List<SettlementTransaction>
     ): File {
         val pdfDocument = PdfDocument()
 
@@ -288,6 +323,10 @@ object ExportEngine {
         val chartPaint = Paint().apply {
             color = Color.parseColor("#E5E7EB")
         }
+
+        val rowPaint = Paint().apply { color = Color.WHITE }
+        val altRowPaint = Paint().apply { color = Color.parseColor("#F9FAFB") }
+        val cellBorderPaint = Paint().apply { color = Color.parseColor("#E5E7EB"); strokeWidth = 1f }
 
         // Draw Header Banner
         canvas.drawRect(Rect(0, 0, 595, 80), primaryColorPaint)
@@ -338,6 +377,63 @@ object ExportEngine {
 
         y += 20f
 
+        // Member Balances Summary Section
+        canvas.drawText("MEMBER BALANCES & NET STATUS", 25f, y, Paint(titlePaint).apply { textSize = 11f })
+        y += 15f
+
+        // Draw Balances Table Headers
+        val balColX = floatArrayOf(25f, 180f, 280f, 380f)
+        canvas.drawRect(25f, y, 570f, y + 18f, primaryColorPaint)
+        canvas.drawText("Member Name", balColX[0] + 5f, y + 12f, Paint(headerPaint).apply { textSize = 9f })
+        canvas.drawText("Total Paid", balColX[1], y + 12f, Paint(headerPaint).apply { textSize = 9f })
+        canvas.drawText("Total Owed", balColX[2], y + 12f, Paint(headerPaint).apply { textSize = 9f })
+        canvas.drawText("Net Balance", balColX[3], y + 12f, Paint(headerPaint).apply { textSize = 9f })
+        y += 18f
+
+        balances.forEachIndexed { index, b ->
+            canvas.drawRect(25f, y, 570f, y + 16f, if (index % 2 == 0) rowPaint else altRowPaint)
+            canvas.drawLine(25f, y + 16f, 570f, y + 16f, cellBorderPaint)
+
+            canvas.drawText(b.user.name, balColX[0] + 5f, y + 12f, bodyPaint)
+            canvas.drawText("₹${String.format(Locale.US, "%.2f", b.totalPaid)}", balColX[1], y + 12f, bodyPaint)
+            canvas.drawText("₹${String.format(Locale.US, "%.2f", b.totalOwed)}", balColX[2], y + 12f, bodyPaint)
+
+            val netStr = "₹${String.format(Locale.US, "%.2f", b.netBalance)}"
+            val netColor = if (b.netBalance >= 0.0) Color.parseColor("#0C8F6E") else Color.parseColor("#C62828")
+            canvas.drawText(netStr, balColX[3], y + 12f, Paint(bodyPaint).apply { isFakeBoldText = true; color = netColor })
+            y += 16f
+        }
+
+        y += 15f
+
+        // Draw Settlement Plan/Transactions Summary
+        canvas.drawText("RESTRUCTURING / SETTLEMENT PLAN", 25f, y, Paint(titlePaint).apply { textSize = 11f })
+        y += 15f
+
+        if (settlements.isEmpty()) {
+            canvas.drawText("All balances are settled up. No debt simplification transfers required.", 25f, y + 10f, Paint(bodyPaint).apply { color = Color.parseColor("#0C8F6E"); isFakeBoldText = true })
+            y += 20f
+        } else {
+            settlements.forEach { s ->
+                val settlementText = "${s.debtor.name} owes ${s.creditor.name} -> ₹${String.format(Locale.US, "%.2f", s.amount)}"
+                canvas.drawText(settlementText, 25f, y + 10f, bodyPaint)
+                y += 14f
+            }
+            y += 10f
+        }
+
+        y += 20f
+
+        // Check if page space is running low, force page break before detailed transaction history
+        if (y > 500f) {
+            pdfDocument.finishPage(page)
+            pageNumber++
+            pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
+            page = pdfDocument.startPage(pageInfo)
+            canvas = page.canvas
+            y = 50f
+        }
+
         // Table List
         canvas.drawText("ITEMIZED TRANSACTION HISTORY", 25f, y, Paint(titlePaint).apply { textSize = 11f })
         y += 15f
@@ -350,10 +446,6 @@ object ExportEngine {
         canvas.drawText("Paid By", colX[3], y + 15f, headerPaint)
         canvas.drawText("Amount", colX[4], y + 15f, headerPaint)
         y += 22f
-
-        val rowPaint = Paint().apply { color = Color.WHITE }
-        val altRowPaint = Paint().apply { color = Color.parseColor("#F9FAFB") }
-        val cellBorderPaint = Paint().apply { color = Color.parseColor("#E5E7EB"); strokeWidth = 1f }
 
         val listSdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
 

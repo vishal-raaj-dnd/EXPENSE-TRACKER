@@ -30,6 +30,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.util.Locale
 import android.widget.Toast
 import android.content.Intent
+import android.content.Context
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.text.style.TextAlign
 
@@ -920,240 +921,879 @@ fun GstCalculatorPanel(
 @Composable
 fun CashCalculatorPanel() {
     val context = LocalContext.current
-    val denominations = listOf(2000, 500, 200, 100, 50, 20, 10, 5, 2, 1)
-    val countTextMap = remember { mutableStateMapOf<Int, String>().apply { denominations.forEach { put(it, "") } } }
+    val sharedPrefs = remember { context.getSharedPreferences("cash_calculator_prefs", Context.MODE_PRIVATE) }
+    
+    var selectedCurrencyCode by remember { mutableStateOf(sharedPrefs.getString("selected_currency_code", "INR") ?: "INR") }
+    var selectedCurrencySymbol by remember { mutableStateOf(sharedPrefs.getString("selected_currency_symbol", "₹") ?: "₹") }
+    var showOnline by remember { mutableStateOf(sharedPrefs.getBoolean("show_online", false)) }
+    
+    var allDenominationsStr by remember { 
+        mutableStateOf(sharedPrefs.getString("all_denominations", "2000,500,200,100,50,20,10,5,2,1") ?: "2000,500,200,100,50,20,10,5,2,1") 
+    }
+    var enabledDenominationsStr by remember { 
+        mutableStateOf(sharedPrefs.getString("enabled_denominations", "2000,500,200,100,50,20,10,5,2,1") ?: "2000,500,200,100,50,20,10,5,2,1") 
+    }
+
+    val defaultDenominations = remember { listOf(2000, 500, 200, 100, 50, 20, 10, 5, 2, 1) }
+
+    val allDenominations = remember(allDenominationsStr) {
+        allDenominationsStr.split(",")
+            .mapNotNull { it.trim().toIntOrNull() }
+            .distinct()
+            .sortedDescending()
+    }
+
+    val enabledDenominationsSet = remember(enabledDenominationsStr) {
+        enabledDenominationsStr.split(",")
+            .mapNotNull { it.trim().toIntOrNull() }
+            .toSet()
+    }
+
+    val denominations = remember(enabledDenominationsSet) {
+        enabledDenominationsSet.sortedDescending()
+    }
+
+    val countTextMap = remember { mutableStateMapOf<Int, String>() }
+
+    var amazonPayText by remember { mutableStateOf("") }
+    var upiGPayText by remember { mutableStateOf("") }
+    var cardNetBankingText by remember { mutableStateOf("") }
 
     val counts = denominations.associateWith { countTextMap[it]?.toIntOrNull() ?: 0 }
     val subtotals = denominations.associateWith { it * (counts[it] ?: 0) }
-    val grandTotal = subtotals.values.sum()
+    val cashGrandTotal = subtotals.values.sum()
+
+    val amazonPayAmount = amazonPayText.toDoubleOrNull() ?: 0.0
+    val upiGPayAmount = upiGPayText.toDoubleOrNull() ?: 0.0
+    val cardNetBankingAmount = cardNetBankingText.toDoubleOrNull() ?: 0.0
+    val onlineTotal = if (showOnline) (amazonPayAmount + upiGPayAmount + cardNetBankingAmount) else 0.0
+
+    val grandTotal = cashGrandTotal + onlineTotal
     val totalNotes = counts.values.sum()
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
-            ) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)
+    var showCurrencyDialog by remember { mutableStateOf(false) }
+    var showDenomManager by remember { mutableStateOf(false) }
+    var showAddCustomDenomDialog by remember { mutableStateOf(false) }
+
+    val currencyOptions = listOf(
+        "INR" to "₹",
+        "USD" to "$",
+        "EUR" to "€",
+        "GBP" to "£",
+        "JPY" to "¥",
+        "AED" to "د.إ"
+    )
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "GRAND TOTAL AMOUNT",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            letterSpacing = 1.2.sp
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "₹${String.format(Locale.US, "%,d", grandTotal)}",
-                            fontSize = 32.sp,
-                            fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                    Text(
+                        text = "Cash & Online Counter",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    
+                    Box {
+                        var menuExpanded by remember { mutableStateOf(false) }
+                        IconButton(
+                            onClick = { menuExpanded = true },
+                            modifier = Modifier.size(36.dp).testTag("cash_counter_settings_btn")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Settings",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        
+                        DropdownMenu(
+                            expanded = menuExpanded,
+                            onDismissRequest = { menuExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Select Currency") },
+                                onClick = {
+                                    menuExpanded = false
+                                    showCurrencyDialog = true
+                                },
+                                leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                                modifier = Modifier.testTag("menu_select_currency")
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Add/Remove Denominations") },
+                                onClick = {
+                                    menuExpanded = false
+                                    showDenomManager = true
+                                },
+                                leadingIcon = { Icon(Icons.Default.List, contentDescription = null) },
+                                modifier = Modifier.testTag("menu_manage_denominations")
+                            )
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("Show Online")
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Checkbox(
+                                            checked = showOnline,
+                                            onCheckedChange = { checked ->
+                                                showOnline = checked
+                                                sharedPrefs.edit().putBoolean("show_online", checked).apply()
+                                            },
+                                            modifier = Modifier.testTag("menu_show_online_checkbox")
+                                        )
+                                    }
+                                },
+                                onClick = {
+                                    val newVal = !showOnline
+                                    showOnline = newVal
+                                    sharedPrefs.edit().putBoolean("show_online", newVal).apply()
+                                    menuExpanded = false
+                                },
+                                modifier = Modifier.testTag("menu_show_online")
+                            )
+                        }
                     }
                 }
             }
-        }
 
-        items(denominations) { denom ->
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f)),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "GRAND TOTAL AMOUNT",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                letterSpacing = 1.2.sp
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            val grandTotalFormatted = if (grandTotal % 1 == 0.0) {
+                                String.format(Locale.US, "%,d", grandTotal.toLong())
+                            } else {
+                                String.format(Locale.US, "%,.2f", grandTotal)
+                            }
+                            Text(
+                                text = "$selectedCurrencySymbol$grandTotalFormatted",
+                                fontSize = 32.sp,
+                                fontWeight = FontWeight.Black,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.testTag("cash_grand_total_text")
+                            )
+                        }
+                    }
+                }
+            }
+
+            items(denominations) { denom ->
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f)),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.width(90.dp)
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.width(90.dp)
+                        ) {
+                            Text(
+                                text = "$selectedCurrencySymbol$denom",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "X",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            )
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            // Decrement Button
+                            OutlinedButton(
+                                onClick = {
+                                    val current = countTextMap[denom]?.toIntOrNull() ?: 0
+                                    if (current > 0) {
+                                        countTextMap[denom] = (current - 1).toString()
+                                    } else {
+                                        countTextMap[denom] = ""
+                                    }
+                                },
+                                contentPadding = PaddingValues(0.dp),
+                                modifier = Modifier.size(32.dp).testTag("decrement_$denom"),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Text("-", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                            }
+
+                            // Editable Input
+                            BasicTextField(
+                                value = countTextMap[denom] ?: "",
+                                onValueChange = { newVal ->
+                                    if (newVal.isEmpty() || newVal.all { it.isDigit() }) {
+                                        countTextMap[denom] = newVal
+                                    }
+                                },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                textStyle = androidx.compose.ui.text.TextStyle(
+                                    textAlign = TextAlign.Center,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                ),
+                                modifier = Modifier
+                                    .width(56.dp)
+                                    .height(32.dp)
+                                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(6.dp))
+                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+                                    .wrapContentHeight(Alignment.CenterVertically)
+                                    .testTag("input_$denom")
+                            )
+
+                            // Increment Button
+                            OutlinedButton(
+                                onClick = {
+                                    val current = countTextMap[denom]?.toIntOrNull() ?: 0
+                                    countTextMap[denom] = (current + 1).toString()
+                                },
+                                contentPadding = PaddingValues(0.dp),
+                                modifier = Modifier.size(32.dp).testTag("increment_$denom"),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Text("+", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                            }
+                        }
+
                         Text(
-                            text = "₹$denom",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "X",
+                            text = "=",
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                         )
-                    }
 
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        // Decrement Button
-                        OutlinedButton(
-                            onClick = {
-                                val current = countTextMap[denom]?.toIntOrNull() ?: 0
-                                if (current > 0) {
-                                    countTextMap[denom] = (current - 1).toString()
-                                } else {
-                                    countTextMap[denom] = ""
-                                }
-                            },
-                            contentPadding = PaddingValues(0.dp),
-                            modifier = Modifier.size(32.dp),
-                            shape = RoundedCornerShape(6.dp)
-                        ) {
-                            Text("-", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
-                        }
-
-                        // Editable Input
-                        BasicTextField(
-                            value = countTextMap[denom] ?: "",
-                            onValueChange = { newVal ->
-                                if (newVal.isEmpty() || newVal.all { it.isDigit() }) {
-                                    countTextMap[denom] = newVal
-                                }
-                            },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true,
-                            textStyle = androidx.compose.ui.text.TextStyle(
-                                textAlign = TextAlign.Center,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            ),
-                            modifier = Modifier
-                                .width(56.dp)
-                                .height(32.dp)
-                                .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(6.dp))
-                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
-                                .wrapContentHeight(Alignment.CenterVertically)
+                        val sub = subtotals[denom] ?: 0
+                        Text(
+                            text = if (sub > 0) "$selectedCurrencySymbol${String.format(Locale.US, "%,d", sub)}" else "—",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = if (sub > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.width(100.dp).testTag("subtotal_$denom"),
+                            textAlign = TextAlign.End
                         )
-
-                        // Increment Button
-                        OutlinedButton(
-                            onClick = {
-                                val current = countTextMap[denom]?.toIntOrNull() ?: 0
-                                countTextMap[denom] = (current + 1).toString()
-                            },
-                            contentPadding = PaddingValues(0.dp),
-                            modifier = Modifier.size(32.dp),
-                            shape = RoundedCornerShape(6.dp)
-                        ) {
-                            Text("+", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
-                        }
                     }
-
-                    Text(
-                        text = "=",
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    )
-
-                    val sub = subtotals[denom] ?: 0
-                    Text(
-                        text = if (sub > 0) "₹${String.format(Locale.US, "%,d", sub)}" else "—",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
-                        color = if (sub > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                        modifier = Modifier.width(100.dp),
-                        textAlign = TextAlign.End
-                    )
                 }
             }
-        }
 
-        // Subtotal / Note counts card
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.03f)),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-            ) {
+            if (showOnline) {
+                item {
+                    Text(
+                        text = "Online Balances",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                    )
+                }
+
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f)),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            // Amazon Pay Row
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Amazon Pay",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                OutlinedTextField(
+                                    value = amazonPayText,
+                                    onValueChange = { newVal ->
+                                        if (newVal.isEmpty() || newVal.all { it.isDigit() || it == '.' }) {
+                                            amazonPayText = newVal
+                                        }
+                                    },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    singleLine = true,
+                                    textStyle = androidx.compose.ui.text.TextStyle(
+                                        textAlign = TextAlign.End,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    ),
+                                    placeholder = {
+                                        Text(
+                                            text = "0.00",
+                                            fontSize = 14.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                            modifier = Modifier.fillMaxWidth(),
+                                            textAlign = TextAlign.End
+                                        )
+                                    },
+                                    prefix = {
+                                        Text(
+                                            text = selectedCurrencySymbol,
+                                            fontSize = 14.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                                    ),
+                                    modifier = Modifier.width(160.dp).testTag("online_amazon_pay")
+                                )
+                            }
+
+                            // GPay/UPI Row
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "UPI / Google Pay",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                OutlinedTextField(
+                                    value = upiGPayText,
+                                    onValueChange = { newVal ->
+                                        if (newVal.isEmpty() || newVal.all { it.isDigit() || it == '.' }) {
+                                            upiGPayText = newVal
+                                        }
+                                    },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    singleLine = true,
+                                    textStyle = androidx.compose.ui.text.TextStyle(
+                                        textAlign = TextAlign.End,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    ),
+                                    placeholder = {
+                                        Text(
+                                            text = "0.00",
+                                            fontSize = 14.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                            modifier = Modifier.fillMaxWidth(),
+                                            textAlign = TextAlign.End
+                                        )
+                                    },
+                                    prefix = {
+                                        Text(
+                                            text = selectedCurrencySymbol,
+                                            fontSize = 14.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                                    ),
+                                    modifier = Modifier.width(160.dp).testTag("online_gpay_upi")
+                                )
+                            }
+
+                            // Card Row
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Card / NetBanking",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                OutlinedTextField(
+                                    value = cardNetBankingText,
+                                    onValueChange = { newVal ->
+                                        if (newVal.isEmpty() || newVal.all { it.isDigit() || it == '.' }) {
+                                            cardNetBankingText = newVal
+                                        }
+                                    },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    singleLine = true,
+                                    textStyle = androidx.compose.ui.text.TextStyle(
+                                        textAlign = TextAlign.End,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    ),
+                                    placeholder = {
+                                        Text(
+                                            text = "0.00",
+                                            fontSize = 14.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                            modifier = Modifier.fillMaxWidth(),
+                                            textAlign = TextAlign.End
+                                        )
+                                    },
+                                    prefix = {
+                                        Text(
+                                            text = selectedCurrencySymbol,
+                                            fontSize = 14.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                                    ),
+                                    modifier = Modifier.width(160.dp).testTag("online_card_netbanking")
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Subtotal / Note counts card
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.03f)),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("Total Note Count", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("$totalNotes Notes", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text("Cash Value Sum", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("$selectedCurrencySymbol${String.format(Locale.US, "%,d", cashGrandTotal)}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                        
+                        if (showOnline && onlineTotal > 0.0) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Online Balances", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("$selectedCurrencySymbol${String.format(Locale.US, "%,.2f", onlineTotal)}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("GRAND TOTAL", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                            val grandTotalFormatted = if (grandTotal % 1 == 0.0) {
+                                String.format(Locale.US, "%,d", grandTotal.toLong())
+                            } else {
+                                String.format(Locale.US, "%,.2f", grandTotal)
+                            }
+                            Text("$selectedCurrencySymbol$grandTotalFormatted", fontSize = 18.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary, modifier = Modifier.testTag("cash_grand_total_summary"))
+                        }
+                    }
+                }
+            }
+
+            // Buttons
+            item {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Column {
-                        Text("Total Note Count", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("$totalNotes Notes", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    Button(
+                        onClick = {
+                            denominations.forEach { countTextMap[it] = "" }
+                            amazonPayText = ""
+                            upiGPayText = ""
+                            cardNetBankingText = ""
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        modifier = Modifier.weight(1f).height(46.dp).testTag("cash_counter_clear_btn"),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                    ) {
+                        Text("Delete", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
                     }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("Grand Value Sum", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("₹${String.format(Locale.US, "%,d", grandTotal)}", fontSize = 16.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+                    Button(
+                        onClick = {
+                            if (grandTotal > 0.0) {
+                                val sb = StringBuilder()
+                                sb.append("💵 Cash & Online Counter Breakdown 💵\n\n")
+                                if (cashGrandTotal > 0) {
+                                    sb.append("--- Cash Denominations ---\n")
+                                    denominations.forEach { denom ->
+                                        val qty = counts[denom] ?: 0
+                                        if (qty > 0) {
+                                            sb.append("$selectedCurrencySymbol$denom x $qty = $selectedCurrencySymbol${String.format(Locale.US, "%,d", subtotals[denom])}\n")
+                                        }
+                                    }
+                                    sb.append("Total Notes/Coins: $totalNotes\n")
+                                    sb.append("Cash Total: $selectedCurrencySymbol${String.format(Locale.US, "%,d", cashGrandTotal)}\n\n")
+                                }
+                                
+                                if (showOnline && onlineTotal > 0.0) {
+                                    sb.append("--- Online Balances ---\n")
+                                    if (amazonPayAmount > 0.0) sb.append("Amazon Pay: $selectedCurrencySymbol${String.format(Locale.US, "%.2f", amazonPayAmount)}\n")
+                                    if (upiGPayAmount > 0.0) sb.append("UPI / Google Pay: $selectedCurrencySymbol${String.format(Locale.US, "%.2f", upiGPayAmount)}\n")
+                                    if (cardNetBankingAmount > 0.0) sb.append("Card / NetBanking: $selectedCurrencySymbol${String.format(Locale.US, "%.2f", cardNetBankingAmount)}\n")
+                                    sb.append("Online Total: $selectedCurrencySymbol${String.format(Locale.US, "%.2f", onlineTotal)}\n\n")
+                                }
+                                
+                                sb.append("-----------------------------\n")
+                                val grandTotalFormatted = if (grandTotal % 1 == 0.0) {
+                                    String.format(Locale.US, "%,d", grandTotal.toLong())
+                                } else {
+                                    String.format(Locale.US, "%,.2f", grandTotal)
+                                }
+                                sb.append("GRAND TOTAL: $selectedCurrencySymbol$grandTotalFormatted")
+
+                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, sb.toString())
+                                }
+                                context.startActivity(Intent.createChooser(shareIntent, "Share Cash Counter Breakdown"))
+                            } else {
+                                Toast.makeText(context, "Enter some counts or online balances first", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        modifier = Modifier.weight(1f).height(46.dp).testTag("cash_counter_share_btn"),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Share", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
                     }
                 }
+                Spacer(modifier = Modifier.height(24.dp))
             }
         }
 
-        // Buttons
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+        // Sub-screen overlay for Denomination Manager (Slide-in from right)
+        AnimatedVisibility(
+            visible = showDenomManager,
+            enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+            exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxSize().testTag("denom_manager_surface"),
+                color = MaterialTheme.colorScheme.background
             ) {
-                Button(
-                    onClick = {
-                        denominations.forEach { countTextMap[it] = "" }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    modifier = Modifier.weight(1f).height(46.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
                 ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                }
-                Button(
-                    onClick = {
-                        if (grandTotal > 0) {
-                            val sb = StringBuilder()
-                            sb.append("💵 Cash Counter Breakdown 💵\n\n")
-                            denominations.forEach { denom ->
-                                val qty = counts[denom] ?: 0
-                                if (qty > 0) {
-                                    sb.append("₹$denom x $qty = ₹${String.format(Locale.US, "%,d", subtotals[denom])}\n")
+                    // Header
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = { showDenomManager = false },
+                            modifier = Modifier.testTag("denom_manager_back_btn")
+                        ) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Manage Denominations",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // Add Button
+                    Button(
+                        onClick = { showAddCustomDenomDialog = true },
+                        modifier = Modifier.fillMaxWidth().testTag("add_custom_denom_btn"),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Add Custom Denomination", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // Denominations List
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(allDenominations) { denom ->
+                            val isEnabled = enabledDenominationsSet.contains(denom)
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isEnabled) 
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.05f) 
+                                    else 
+                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.05f)
+                                ),
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(
+                                    width = 1.dp,
+                                    color = if (isEnabled) 
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) 
+                                    else 
+                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                                ),
+                                modifier = Modifier.fillMaxWidth().testTag("denom_item_$denom")
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = "$selectedCurrencySymbol$denom",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 16.sp,
+                                            color = if (isEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        if (!defaultDenominations.contains(denom)) {
+                                            IconButton(
+                                                onClick = {
+                                                    val newAll = allDenominations - denom
+                                                    val newEnabled = enabledDenominationsSet - denom
+                                                    
+                                                    allDenominationsStr = newAll.sortedDescending().joinToString(",")
+                                                    enabledDenominationsStr = newEnabled.sortedDescending().joinToString(",")
+                                                    
+                                                    sharedPrefs.edit()
+                                                        .putString("all_denominations", allDenominationsStr)
+                                                        .putString("enabled_denominations", enabledDenominationsStr)
+                                                        .apply()
+                                                    
+                                                    Toast.makeText(context, "Removed denomination $denom", Toast.LENGTH_SHORT).show()
+                                                },
+                                                modifier = Modifier.testTag("delete_denom_$denom")
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Delete,
+                                                    contentDescription = "Delete Custom Denomination",
+                                                    tint = MaterialTheme.colorScheme.error
+                                                )
+                                            }
+                                        }
+                                        
+                                        Switch(
+                                            checked = isEnabled,
+                                            onCheckedChange = { checked ->
+                                                val newEnabled = if (checked) {
+                                                    enabledDenominationsSet + denom
+                                                } else {
+                                                    enabledDenominationsSet - denom
+                                                }
+                                                enabledDenominationsStr = newEnabled.sortedDescending().joinToString(",")
+                                                sharedPrefs.edit().putString("enabled_denominations", enabledDenominationsStr).apply()
+                                            },
+                                            modifier = Modifier.testTag("switch_denom_$denom")
+                                        )
+                                    }
                                 }
                             }
-                            sb.append("-----------------------------\n")
-                            sb.append("Total Items: $totalNotes Notes/Coins\n")
-                            sb.append("Grand Total: ₹${String.format(Locale.US, "%,d", grandTotal)}")
-
-                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, sb.toString())
-                            }
-                            context.startActivity(Intent.createChooser(shareIntent, "Share Cash Counter Breakdown"))
-                        } else {
-                            Toast.makeText(context, "Enter some denomination counts first", Toast.LENGTH_SHORT).show()
                         }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                    modifier = Modifier.weight(1f).height(46.dp),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Text("Share", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
-            Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+
+    // Dialogs
+    if (showCurrencyDialog) {
+        AlertDialog(
+            onDismissRequest = { showCurrencyDialog = false },
+            title = { Text("Select Currency", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    currencyOptions.forEach { (code, symbol) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    selectedCurrencyCode = code
+                                    selectedCurrencySymbol = symbol
+                                    sharedPrefs.edit()
+                                        .putString("selected_currency_code", code)
+                                        .putString("selected_currency_symbol", symbol)
+                                        .apply()
+                                    showCurrencyDialog = false
+                                }
+                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                                .testTag("currency_option_$code"),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "$code ($symbol)",
+                                fontWeight = if (selectedCurrencyCode == code) FontWeight.Bold else FontWeight.Normal,
+                                color = if (selectedCurrencyCode == code) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                            )
+                            if (selectedCurrencyCode == code) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Selected",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { showCurrencyDialog = false },
+                    modifier = Modifier.testTag("currency_dialog_cancel")
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showAddCustomDenomDialog) {
+        var newDenomText by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showAddCustomDenomDialog = false },
+            title = { Text("Add Custom Denomination", fontWeight = FontWeight.Bold) },
+            text = {
+                OutlinedTextField(
+                    value = newDenomText,
+                    onValueChange = { newVal ->
+                        if (newVal.isEmpty() || newVal.all { it.isDigit() }) {
+                            newDenomText = newVal
+                        }
+                    },
+                    label = { Text("Value") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("custom_denom_input")
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val value = newDenomText.toIntOrNull()
+                        if (value != null && value > 0) {
+                            if (!allDenominations.contains(value)) {
+                                val newAll = (allDenominations + value).sortedDescending()
+                                val newEnabled = (enabledDenominationsSet + value).sortedDescending()
+                                
+                                allDenominationsStr = newAll.joinToString(",")
+                                enabledDenominationsStr = newEnabled.joinToString(",")
+                                
+                                sharedPrefs.edit()
+                                    .putString("all_denominations", allDenominationsStr)
+                                    .putString("enabled_denominations", enabledDenominationsStr)
+                                    .apply()
+                                
+                                Toast.makeText(context, "Denomination $selectedCurrencySymbol$value added", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "Denomination already exists", Toast.LENGTH_SHORT).show()
+                            }
+                            showAddCustomDenomDialog = false
+                        } else {
+                            Toast.makeText(context, "Enter a valid value", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.testTag("custom_denom_add_confirm")
+                ) {
+                    Text("Add")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showAddCustomDenomDialog = false },
+                    modifier = Modifier.testTag("custom_denom_add_cancel")
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 

@@ -46,6 +46,7 @@ android {
       signingConfig = signingConfigs.getByName("release")
     }
     debug {
+      isCrunchPngs = false
       signingConfig = signingConfigs.getByName("debugConfig")
     }
   }
@@ -65,6 +66,10 @@ android {
 secrets {
   propertiesFileName = ".env"
   defaultPropertiesFileName = ".env.example"
+}
+
+ksp {
+  arg("room.generateKotlinMetadata", "false")
 }
 
 // Some unused dependencies are commented out below instead of being removed.
