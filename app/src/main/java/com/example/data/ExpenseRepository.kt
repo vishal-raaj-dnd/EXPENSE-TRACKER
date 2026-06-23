@@ -1,6 +1,7 @@
 package com.example.data
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 
 class ExpenseRepository(private val expenseDao: ExpenseDao) {
 
@@ -25,6 +26,8 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
     
     fun getSplitsForExpense(expenseId: Long): Flow<List<ExpenseSplit>> = expenseDao.getSplitsForExpense(expenseId)
 
+    fun getSplitsForUser(userId: Long): Flow<List<ExpenseSplit>> = expenseDao.getSplitsForUser(userId)
+
     // --- Insertions / Write Operations ---
     suspend fun insertUser(user: User): Long {
         return expenseDao.insertUser(user)
@@ -39,11 +42,7 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
     }
 
     suspend fun addSpaceWithMembers(name: String, description: String, userIds: List<Long>): Long {
-        val spaceId = expenseDao.insertSpace(Space(name = name, description = description))
-        for (userId in userIds) {
-            expenseDao.insertSpaceMember(SpaceMember(spaceId = spaceId, userId = userId))
-        }
-        return spaceId
+        return expenseDao.addSpaceWithMembers(name, description, userIds)
     }
 
     suspend fun addMemberToSpace(spaceId: Long, userId: Long) {
@@ -55,32 +54,19 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
     }
 
     suspend fun deleteSpace(space: Space) {
-        expenseDao.deleteSplitsBySpaceId(space.id)
-        expenseDao.deleteExpensesBySpaceId(space.id)
-        expenseDao.deleteSpaceMembers(space.id)
-        expenseDao.deleteSpace(space)
+        expenseDao.deleteSpaceCascade(space)
     }
 
     suspend fun addExpenseWithSplits(expense: Expense, splits: List<ExpenseSplit>): Long {
-        val expenseId = expenseDao.insertExpense(expense)
-        for (split in splits) {
-            // Save each split referencing the correct expense id
-            expenseDao.insertExpenseSplit(split.copy(expenseId = expenseId))
-        }
-        return expenseId
+        return expenseDao.insertExpenseWithSplits(expense, splits)
     }
 
     suspend fun updateExpenseWithSplits(expense: Expense, splits: List<ExpenseSplit>) {
-        expenseDao.insertExpense(expense)
-        expenseDao.deleteSplitsByExpenseId(expense.id)
-        for (split in splits) {
-            expenseDao.insertExpenseSplit(split.copy(expenseId = expense.id))
-        }
+        expenseDao.updateExpenseWithSplits(expense, splits)
     }
 
     suspend fun deleteExpense(expenseId: Long) {
-        expenseDao.deleteExpenseById(expenseId)
-        expenseDao.deleteSplitsByExpenseId(expenseId)
+        expenseDao.deleteExpenseCascade(expenseId)
     }
 
     // --- Wallets Write Ops ---
@@ -89,8 +75,11 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
     }
 
     suspend fun deleteWallet(wallet: Wallet) {
-        expenseDao.deleteSubscriptionsByWalletId(wallet.id)
-        expenseDao.deleteWallet(wallet)
+        expenseDao.deleteWalletCascade(wallet)
+    }
+
+    suspend fun updateWallet(id: Long, name: String, type: String, balance: Double) {
+        expenseDao.updateWallet(id, name, type, balance)
     }
 
     // --- Categories Write Ops ---
@@ -99,6 +88,12 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
     }
 
     suspend fun deleteCategory(category: Category) {
+        // Delete budgets of child categories first to prevent orphaned budgets
+        val categories = expenseDao.getAllCategories().first()
+        val children = categories.filter { it.parentId == category.id }
+        for (child in children) {
+            expenseDao.deleteBudgetsByCategoryName(child.name)
+        }
         expenseDao.deleteBudgetsByCategoryName(category.name)
         expenseDao.deleteCategory(category)
     }
@@ -130,40 +125,31 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
             if (now >= sub.nextDueDate && sub.isActive) {
                 // 1. Get members of this space to calculate split
                 val memberIds = expenseDao.getMemberIdsOfSpaceSync(sub.spaceId)
-                if (memberIds.isNotEmpty()) {
-                    val splitAmount = sub.amount / memberIds.size
+                if (memberIds.isEmpty()) continue
 
-                    // 2. Insert expense
-                    val expense = Expense(
-                        spaceId = sub.spaceId,
-                        paidById = sub.paidById,
-                        description = "Recurring: ${sub.name}",
-                        amount = sub.amount,
-                        category = sub.category,
-                        walletId = sub.walletId,
-                        date = sub.nextDueDate // Use the scheduled due date
-                    )
-                    val expenseId = expenseDao.insertExpense(expense)
+                // Round split amounts correctly (H7 / H8)
+                val size = memberIds.size
+                val perPerson = Math.round((sub.amount / size) * 100.0) / 100.0
+                val totalAllocated = perPerson * size
+                val diff = Math.round((sub.amount - totalAllocated) * 100.0) / 100.0
 
-                    // 3. Insert splits for all members of the space
-                    for (memberId in memberIds) {
-                        expenseDao.insertExpenseSplit(
-                            ExpenseSplit(
-                                expenseId = expenseId,
-                                userId = memberId,
-                                amountOwed = splitAmount
-                            )
-                        )
-                    }
-
-                    // 4. Update wallet balance
-                    val wallet = expenseDao.getWalletById(sub.walletId)
-                    if (wallet != null) {
-                        expenseDao.insertWallet(wallet.copy(balance = wallet.balance - sub.amount))
-                    }
+                val splits = memberIds.mapIndexed { index, memberId ->
+                    val owe = if (index == size - 1) Math.round((perPerson + diff) * 100.0) / 100.0 else perPerson
+                    ExpenseSplit(expenseId = 0, userId = memberId, amountOwed = owe)
                 }
 
-                // 5. Calculate next due date
+                // 2. Prepare expense object
+                val expense = Expense(
+                    spaceId = sub.spaceId,
+                    paidById = sub.paidById,
+                    description = "Recurring: ${sub.name}",
+                    amount = sub.amount,
+                    category = sub.category,
+                    walletId = sub.walletId,
+                    date = sub.nextDueDate // Use the scheduled due date
+                )
+
+                // 3. Calculate next due date
                 val calendar = java.util.Calendar.getInstance().apply {
                     timeInMillis = sub.nextDueDate
                 }
@@ -175,8 +161,14 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
                 }
 
                 val updatedSub = sub.copy(nextDueDate = calendar.timeInMillis)
-                expenseDao.insertSubscription(updatedSub)
-                processedCount++
+
+                // 4. Run transactional process (H2, M16)
+                try {
+                    expenseDao.processSubscriptionPayment(expense, splits, updatedSub)
+                    processedCount++
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
             }
         }
         return processedCount
@@ -185,6 +177,28 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
     // --- All Splits Flow (for dashboard sync) ---
     val allExpenseSplits: Flow<List<ExpenseSplit>> = expenseDao.getAllExpenseSplits()
 
+    suspend fun settleDebtTransactionally(
+        spaceId: Long,
+        debtorId: Long,
+        creditorId: Long,
+        amount: Double,
+        walletId: Long
+    ) {
+        expenseDao.settleDebtTransactionally(spaceId, debtorId, creditorId, amount, walletId)
+    }
+
+    suspend fun deductFromWallet(walletId: Long, amount: Double) {
+        val wallet = expenseDao.getWalletById(walletId) ?: throw IllegalStateException("Wallet not found")
+        val affected = if (wallet.type == "Credit Card") {
+            expenseDao.deductFromWalletNoCheck(walletId, amount)
+        } else {
+            expenseDao.deductFromWalletWithCheck(walletId, amount)
+        }
+        if (affected == 0) {
+            throw IllegalStateException("Insufficient balance in wallet")
+        }
+    }
+
     // --- Update User (for profile editing) ---
     suspend fun updateUser(user: User) {
         expenseDao.insertUser(user)
@@ -192,39 +206,17 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
 
     /**
      * Removes a user from a space and recalculates all affected expense splits.
-     * 1. Expenses paid by deleted user -> delete expense + all its splits
+     * 1. Expenses paid by deleted user -> reassign payer or delete if empty
      * 2. Expenses where deleted user was a split participant -> remove their split
      *    and redistribute evenly among remaining participants
      * 3. Remove the SpaceMember entry
      */
     suspend fun removeUserFromSpaceAndRecalculate(spaceId: Long, userId: Long) {
-        // Step 1: Delete all expenses paid by this user in this space (and their splits)
-        val paidExpenseIds = expenseDao.getExpenseIdsPayedByUserInSpace(spaceId, userId)
-        for (expenseId in paidExpenseIds) {
-            expenseDao.deleteSplitsByExpenseId(expenseId)
-            expenseDao.deleteExpenseById(expenseId)
-        }
+        expenseDao.removeUserFromSpaceAndRecalculate(spaceId, userId)
+    }
 
-        // Step 2: Remove this user's splits from expenses they didn't pay
-        expenseDao.deleteSplitsByUserInSpace(spaceId, userId)
-
-        // Step 3: Recalculate remaining splits for all expenses in this space
-        val remainingExpenses = expenseDao.getExpensesInSpaceSync(spaceId)
-        for (expense in remainingExpenses) {
-            val remainingSplits = expenseDao.getSplitsForExpenseSync(expense.id)
-            if (remainingSplits.isEmpty()) {
-                // No participants left -> delete the orphaned expense
-                expenseDao.deleteExpenseById(expense.id)
-            } else {
-                // Redistribute the expense amount equally among remaining participants
-                val newPerPerson = expense.amount / remainingSplits.size
-                for (split in remainingSplits) {
-                    expenseDao.updateSplitAmount(split.id, newPerPerson)
-                }
-            }
-        }
-
-        // Step 4: Remove the space membership
-        expenseDao.deleteSpaceMember(spaceId, userId)
+    // --- Onboarding Reset ---
+    suspend fun clearAllData() {
+        expenseDao.clearAllData()
     }
 }

@@ -29,10 +29,10 @@ val LightOnSurfaceVariant = Color(0xFF5A6672) // Readable medium slate gray
 val LightOutline = Color(0xFFCFD8DC)        // Crisp border outline
 val LightOutlineVariant = Color(0xFFB0BEC5)
 
-val LightError = Color(0xFFC62828)
+val LightError = Color(0xFFD84315)
 val LightOnError = Color(0xFFFFFFFF)
-val LightErrorContainer = Color(0xFFFFDAD6)
-val LightOnErrorContainer = Color(0xFF410002)
+val LightErrorContainer = Color(0xFFFBE9E7)
+val LightOnErrorContainer = Color(0xFF3E1A00)
 
 val LightInverseSurface = Color(0xFF1A2126)
 val LightInverseOnSurface = Color(0xFFF1F3F5)
@@ -68,10 +68,10 @@ val DarkOnSurfaceVariant = Color(0xFF94A3B8) // Muted Silver-grey subtext
 val DarkOutline = Color(0xFF2A2F42)         // Subtle Charcoal Outline
 val DarkOutlineVariant = Color(0xFF383F57)
 
-val DarkError = Color(0xFFF28B82)
-val DarkOnError = Color(0xFF601410)
-val DarkErrorContainer = Color(0xFF8C1D18)
-val DarkOnErrorContainer = Color(0xFFFFDAD6)
+val DarkError = Color(0xFFFF8A65)
+val DarkOnError = Color(0xFF4A1C00)
+val DarkErrorContainer = Color(0xFF6D3A2A)
+val DarkOnErrorContainer = Color(0xFFFFD0C0)
 
 val DarkInverseSurface = Color(0xFFF8FAFC)
 val DarkInverseOnSurface = Color(0xFF0C0E14)

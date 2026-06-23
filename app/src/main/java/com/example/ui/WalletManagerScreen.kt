@@ -164,7 +164,7 @@ fun WalletManagerScreen(
                                 .testTag("wallet_balance_input"),
                             singleLine = true,
                             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
                             ),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = MaterialTheme.colorScheme.onSurface,
@@ -199,27 +199,33 @@ fun WalletManagerScreen(
                                 }
                             }
 
+                            val context = androidx.compose.ui.platform.LocalContext.current
                             Button(
                                 onClick = {
                                     if (walletName.isNotBlank()) {
-                                        val bal = walletBalance.toDoubleOrNull() ?: 0.0
-                                        val currentEditing = editingWallet
-                                        if (currentEditing != null) {
-                                            viewModel.updateWallet(
-                                                currentEditing.copy(
+                                        val bal = walletBalance.toDoubleOrNull()
+                                        if (bal == null) {
+                                            android.widget.Toast.makeText(context, "Please enter a valid balance amount.", android.widget.Toast.LENGTH_SHORT).show()
+                                        } else if (walletType != "Credit Card" && bal < 0.0) {
+                                            android.widget.Toast.makeText(context, "${walletType} balance cannot be negative.", android.widget.Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            val currentEditing = editingWallet
+                                            if (currentEditing != null) {
+                                                viewModel.updateWallet(
+                                                    id = currentEditing.id,
                                                     name = walletName,
                                                     type = walletType,
                                                     balance = bal
                                                 )
-                                            )
-                                        } else {
-                                            viewModel.insertWallet(walletName, walletType, bal)
+                                            } else {
+                                                viewModel.insertWallet(walletName, walletType, bal)
+                                            }
+                                            editingWallet = null
+                                            walletName = ""
+                                            walletType = "Cash"
+                                            walletBalance = ""
+                                            focusManager.clearFocus()
                                         }
-                                        editingWallet = null
-                                        walletName = ""
-                                        walletType = "Cash"
-                                        walletBalance = ""
-                                        focusManager.clearFocus()
                                     }
                                 },
                                 colors = ButtonDefaults.buttonColors(
@@ -271,7 +277,7 @@ fun WalletManagerScreen(
                                 fontSize = 15.sp
                             )
                             Text(
-                                text = "Type: ${wallet.type} • Balance: ₹${wallet.balance}",
+                                text = "Type: ${wallet.type} • Balance: ₹${formatAmount(wallet.balance)}",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 12.sp
                             )
@@ -291,7 +297,7 @@ fun WalletManagerScreen(
                                         editingWallet = wallet
                                         walletName = wallet.name
                                         walletType = wallet.type
-                                        walletBalance = wallet.balance.toString()
+                                        walletBalance = String.format(java.util.Locale.US, "%.2f", wallet.balance)
                                     }
                             ) {
                                 Icon(

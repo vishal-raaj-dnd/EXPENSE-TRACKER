@@ -8,6 +8,7 @@ import android.graphics.pdf.PdfDocument
 import com.example.data.Expense
 import com.example.data.User
 import com.example.data.Wallet
+import com.example.data.ExpenseSplit
 import com.example.ui.ExpenseViewModel.MemberBalance
 import com.example.ui.ExpenseViewModel.SettlementTransaction
 import java.io.File
@@ -17,8 +18,15 @@ import java.util.Date
 import java.util.Locale
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import java.io.FileInputStream
+import android.net.Uri
 
 object ExportEngine {
+
+    private fun formatAmount(amount: Double): String {
+        val formatter = java.text.DecimalFormat("##,##,##,##0.00")
+        return formatter.format(amount)
+    }
 
     // ========================================================================
     // LIGHTWEIGHT XLSX WRITER (No Apache POI)
@@ -54,6 +62,16 @@ object ExportEngine {
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
 </Relationships>"""
 
+    private fun getColumnLetter(colIdx: Int): String {
+        var i = colIdx
+        val sb = java.lang.StringBuilder()
+        while (i >= 0) {
+            sb.append(('A'.code + (i % 26)).toChar())
+            i = i / 26 - 1
+        }
+        return sb.reverse().toString()
+    }
+
     private fun buildSheetXml(rows: List<List<String>>): String {
         val sb = StringBuilder()
         sb.append("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>""")
@@ -62,10 +80,11 @@ object ExportEngine {
         rows.forEachIndexed { rowIdx, cells ->
             sb.append("""<row r="${rowIdx + 1}">""")
             cells.forEachIndexed { colIdx, cellValue ->
-                val colLetter = ('A' + colIdx)
+                val colLetter = getColumnLetter(colIdx)
                 val cellRef = "$colLetter${rowIdx + 1}"
                 // Try to write numbers as numbers, otherwise inline string
-                val numVal = cellValue.toDoubleOrNull()
+                val cleanValue = cellValue.replace(",", "").replace("₹", "").trim()
+                val numVal = cleanValue.toDoubleOrNull()
                 if (numVal != null) {
                     sb.append("""<c r="$cellRef"><v>$numVal</v></c>""")
                 } else {
@@ -79,7 +98,8 @@ object ExportEngine {
     }
 
     private fun writeXlsxFile(context: Context, filename: String, rows: List<List<String>>): File {
-        val file = File(context.cacheDir, filename)
+        val sharedDir = File(context.cacheDir, "shared").also { it.mkdirs() }
+        val file = File(sharedDir, filename)
         ZipOutputStream(FileOutputStream(file)).use { zip ->
             fun addEntry(name: String, content: String) {
                 zip.putNextEntry(ZipEntry(name))
@@ -107,7 +127,7 @@ object ExportEngine {
         balances: List<MemberBalance>,
         settlements: List<SettlementTransaction>
     ): File {
-        val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
+        val sdf = SimpleDateFormat("dd-MM-yyyy hh:mm a", Locale.US)
         val rows = mutableListOf<List<String>>()
 
         // Title row
@@ -126,14 +146,14 @@ object ExportEngine {
                 exp.category,
                 exp.description,
                 payerName,
-                exp.amount.toString(),
+                formatAmount(exp.amount),
                 walletName
             ))
             totalAmount += exp.amount
         }
 
         rows.add(emptyList()) // blank row
-        rows.add(listOf("", "", "", "TOTAL SPENT:", totalAmount.toString()))
+        rows.add(listOf("", "", "", "TOTAL SPENT:", formatAmount(totalAmount)))
 
         // Append Member Balances Section
         rows.add(emptyList())
@@ -142,9 +162,9 @@ object ExportEngine {
         balances.forEach { b ->
             rows.add(listOf(
                 b.user.name,
-                b.totalPaid.toString(),
-                b.totalOwed.toString(),
-                b.netBalance.toString()
+                formatAmount(b.totalPaid),
+                formatAmount(b.totalOwed),
+                formatAmount(b.netBalance)
             ))
         }
 
@@ -159,7 +179,7 @@ object ExportEngine {
                 rows.add(listOf(
                     s.debtor.name,
                     s.creditor.name,
-                    s.amount.toString()
+                    formatAmount(s.amount)
                 ))
             }
         }
@@ -180,7 +200,7 @@ object ExportEngine {
         expenses: List<Expense>,
         members: List<User>
     ): File {
-        val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
+        val sdf = SimpleDateFormat("dd-MM-yyyy hh:mm a", Locale.US)
         val walletExpenses = expenses.filter { it.walletId == wallet.id }
         val rows = mutableListOf<List<String>>()
 
@@ -196,13 +216,13 @@ object ExportEngine {
                 exp.category,
                 exp.description,
                 payerName,
-                exp.amount.toString()
+                formatAmount(exp.amount)
             ))
             totalAmount += exp.amount
         }
 
         rows.add(emptyList())
-        rows.add(listOf("", "", "", "TOTAL FUNDED:", totalAmount.toString()))
+        rows.add(listOf("", "", "", "TOTAL FUNDED:", formatAmount(totalAmount)))
 
         return writeXlsxFile(
             context,
@@ -223,7 +243,7 @@ object ExportEngine {
     ): File {
         val sb = StringBuilder()
         sb.append("Date,Category,Description,Paid By,Amount,Funding Wallet\n")
-        val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
+        val sdf = SimpleDateFormat("dd-MM-yyyy hh:mm a", Locale.US)
         expenses.forEach { exp ->
             val dateStr = sdf.format(Date(exp.date))
             val categoryStr = exp.category.replace("\"", "\"\"")
@@ -234,7 +254,8 @@ object ExportEngine {
             sb.append("\"$dateStr\",\"$categoryStr\",\"$descStr\",\"$payerName\",${exp.amount},\"$walletName\"\n")
         }
 
-        val file = File(context.cacheDir, "ledger_${spaceName.replace(" ", "_").lowercase()}_${System.currentTimeMillis()}.csv")
+        val sharedDir = File(context.cacheDir, "shared").also { it.mkdirs() }
+        val file = File(sharedDir, "ledger_${spaceName.replace(" ", "_").lowercase()}_${System.currentTimeMillis()}.csv")
         file.writeText(sb.toString())
         return file
     }
@@ -250,7 +271,7 @@ object ExportEngine {
     ): File {
         val sb = StringBuilder()
         sb.append("Date,Category,Description,Paid By,Amount\n")
-        val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
+        val sdf = SimpleDateFormat("dd-MM-yyyy hh:mm a", Locale.US)
         val walletExpenses = expenses.filter { it.walletId == wallet.id }
         walletExpenses.forEach { exp ->
             val dateStr = sdf.format(Date(exp.date))
@@ -261,7 +282,8 @@ object ExportEngine {
             sb.append("\"$dateStr\",\"$categoryStr\",\"$descStr\",\"$payerName\",${exp.amount}\n")
         }
 
-        val file = File(context.cacheDir, "ledger_wallet_${wallet.name.replace(" ", "_").lowercase()}_${System.currentTimeMillis()}.csv")
+        val sharedDir = File(context.cacheDir, "shared").also { it.mkdirs() }
+        val file = File(sharedDir, "ledger_wallet_${wallet.name.replace(" ", "_").lowercase()}_${System.currentTimeMillis()}.csv")
         file.writeText(sb.toString())
         return file
     }
@@ -276,7 +298,8 @@ object ExportEngine {
         members: List<User>,
         wallets: List<Wallet>,
         balances: List<MemberBalance>,
-        settlements: List<SettlementTransaction>
+        settlements: List<SettlementTransaction>,
+        splits: List<ExpenseSplit>
     ): File {
         val pdfDocument = PdfDocument()
 
@@ -331,32 +354,52 @@ object ExportEngine {
         // Draw Header Banner
         canvas.drawRect(Rect(0, 0, 595, 80), primaryColorPaint)
         canvas.drawText("FINANCIAL AUDIT REPORT", 25f, 42f, Paint(headerPaint).apply { textSize = 18f })
-        canvas.drawText("Generated locally by Travel Split", 25f, 62f, Paint(headerPaint).apply { textSize = 10f })
+        canvas.drawText("Generated by Travel Split", 25f, 62f, Paint(headerPaint).apply { textSize = 10f })
 
         var y = 110f
 
         // Document Metadata
         canvas.drawText("Group/Space Name: $spaceName", 25f, y, Paint(titlePaint).apply { textSize = 14f })
         y += 20f
-        val genSdf = SimpleDateFormat("MMMM dd, yyyy 'at' hh:mm a", Locale.US)
+        val genSdf = SimpleDateFormat("dd-MM-yyyy hh:mm a", Locale.US)
         canvas.drawText("Export Date: ${genSdf.format(Date())}", 25f, y, subTitlePaint)
         y += 30f
 
-        // Total Spent KPI block
+        // Local helper to handle page-breaks cleanly
+        fun checkPageBreak(requiredHeight: Float) {
+            if (y + requiredHeight > 780f) {
+                pdfDocument.finishPage(page)
+                pageNumber++
+                pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
+                page = pdfDocument.startPage(pageInfo)
+                canvas = page.canvas
+                canvas.drawRect(Rect(0, 0, 595, 40), primaryColorPaint)
+                canvas.drawText("FINANCIAL AUDIT REPORT (Continued)", 25f, 25f, Paint(headerPaint).apply { textSize = 12f })
+                y = 55f
+            }
+        }
+
+        // ==========================================
+        // 1. TOTAL GROUP SPENDING KPI BLOCK (MOVED UP)
+        // ==========================================
+        checkPageBreak(65f)
         val totalSpent = expenses.sumOf { it.amount }
         canvas.drawRoundRect(25f, y, 570f, y + 60f, 15f, 15f, lightGrayPaint)
         canvas.drawText("TOTAL GROUP SPENDING", 40f, y + 25f, Paint(subTitlePaint).apply { isFakeBoldText = true; color = Color.GRAY; textSize = 9f })
-        canvas.drawText("₹${String.format(Locale.US, "%.2f", totalSpent)}", 40f, y + 50f, Paint(titlePaint).apply { textSize = 20f; color = Color.parseColor("#1B2D4F") })
+        canvas.drawText("₹${formatAmount(totalSpent)}", 40f, y + 50f, Paint(titlePaint).apply { textSize = 20f; color = Color.parseColor("#1B2D4F") })
+        y += 80f
 
-        y += 85f
-
-        // Visual category proportional charts
+        // ==========================================
+        // 2. CATEGORY SPENDING BREAKDOWN (MOVED UP)
+        // ==========================================
+        checkPageBreak(30f)
         canvas.drawText("CATEGORY SPENDING BREAKDOWN", 25f, y, Paint(titlePaint).apply { textSize = 11f })
         y += 15f
 
         val categoriesMap = expenses.groupBy { it.category }.mapValues { it.value.sumOf { it.amount } }
         if (categoriesMap.isNotEmpty()) {
             categoriesMap.forEach { (cat, amt) ->
+                checkPageBreak(18f)
                 val pct = if (totalSpent > 0.0) (amt / totalSpent).toFloat() else 0f
                 canvas.drawText(cat, 25f, y + 10f, bodyPaint)
 
@@ -367,7 +410,7 @@ object ExportEngine {
                 val barEnd = 180f + if (barWidth < 4f) 4f else barWidth
                 canvas.drawRoundRect(180f, y + 2f, barEnd, y + 10f, 4f, 4f, accentColorPaint)
 
-                canvas.drawText("${String.format(Locale.US, "%.1f", pct * 100f)}% (₹${String.format(Locale.US, "%.2f", amt)})", 460f, y + 10f, Paint(bodyPaint).apply { isFakeBoldText = true })
+                canvas.drawText("${String.format(Locale.US, "%.1f", pct * 100f)}% (₹${formatAmount(amt)})", 460f, y + 10f, Paint(bodyPaint).apply { isFakeBoldText = true })
                 y += 18f
             }
         } else {
@@ -377,7 +420,56 @@ object ExportEngine {
 
         y += 20f
 
-        // Member Balances Summary Section
+        // ==========================================
+        // 3. ITEMIZED TRANSACTION HISTORY (WITH WHO INVOLVES COLUMN)
+        // ==========================================
+        checkPageBreak(40f)
+        canvas.drawText("ITEMIZED TRANSACTION HISTORY", 25f, y, Paint(titlePaint).apply { textSize = 11f })
+        y += 15f
+
+        val colX = floatArrayOf(25f, 135f, 210f, 295f, 370f, 435f)
+        canvas.drawRect(25f, y, 570f, y + 22f, primaryColorPaint)
+        canvas.drawText("Date", colX[0] + 5f, y + 15f, Paint(headerPaint).apply { textSize = 9f })
+        canvas.drawText("Category", colX[1], y + 15f, headerPaint)
+        canvas.drawText("Description", colX[2], y + 15f, headerPaint)
+        canvas.drawText("Paid By", colX[3], y + 15f, headerPaint)
+        canvas.drawText("Amount", colX[4], y + 15f, headerPaint)
+        canvas.drawText("Who involves", colX[5], y + 15f, headerPaint)
+        y += 22f
+
+        val listSdf = SimpleDateFormat("dd-MM-yyyy hh:mm a", Locale.US)
+
+        expenses.forEachIndexed { index, exp ->
+            checkPageBreak(18f)
+
+            canvas.drawRect(25f, y, 570f, y + 18f, if (index % 2 == 0) rowPaint else altRowPaint)
+            canvas.drawLine(25f, y + 18f, 570f, y + 18f, cellBorderPaint)
+
+            val dateText = listSdf.format(Date(exp.date))
+            val categoryText = if (exp.category.length > 12) exp.category.take(10) + ".." else exp.category
+            val descText = if (exp.description.length > 15) exp.description.take(13) + ".." else exp.description
+            val payerName = members.find { it.id == exp.paidById }?.name ?: "Unknown"
+            val amtText = "₹${formatAmount(exp.amount)}"
+            val involvedMembers = splits.filter { it.expenseId == exp.id }
+                .map { split -> members.find { it.id == split.userId }?.name ?: "Unknown" }
+                .joinToString(", ")
+            val involvedText = if (involvedMembers.length > 25) involvedMembers.take(23) + ".." else involvedMembers
+
+            canvas.drawText(dateText, colX[0] + 5f, y + 13f, bodyPaint)
+            canvas.drawText(categoryText, colX[1], y + 13f, bodyPaint)
+            canvas.drawText(descText, colX[2], y + 13f, bodyPaint)
+            canvas.drawText(payerName, colX[3], y + 13f, bodyPaint)
+            canvas.drawText(amtText, colX[4], y + 13f, Paint(bodyPaint).apply { isFakeBoldText = true })
+            canvas.drawText(involvedText, colX[5], y + 13f, bodyPaint)
+            y += 18f
+        }
+
+        y += 20f
+
+        // ==========================================
+        // 4. MEMBER BALANCES SUMMARY
+        // ==========================================
+        checkPageBreak(35f + balances.size * 16f)
         canvas.drawText("MEMBER BALANCES & NET STATUS", 25f, y, Paint(titlePaint).apply { textSize = 11f })
         y += 15f
 
@@ -395,18 +487,21 @@ object ExportEngine {
             canvas.drawLine(25f, y + 16f, 570f, y + 16f, cellBorderPaint)
 
             canvas.drawText(b.user.name, balColX[0] + 5f, y + 12f, bodyPaint)
-            canvas.drawText("₹${String.format(Locale.US, "%.2f", b.totalPaid)}", balColX[1], y + 12f, bodyPaint)
-            canvas.drawText("₹${String.format(Locale.US, "%.2f", b.totalOwed)}", balColX[2], y + 12f, bodyPaint)
+            canvas.drawText("₹${formatAmount(b.totalPaid)}", balColX[1], y + 12f, bodyPaint)
+            canvas.drawText("₹${formatAmount(b.totalOwed)}", balColX[2], y + 12f, bodyPaint)
 
-            val netStr = "₹${String.format(Locale.US, "%.2f", b.netBalance)}"
-            val netColor = if (b.netBalance >= 0.0) Color.parseColor("#0C8F6E") else Color.parseColor("#C62828")
+            val netStr = if (b.netBalance >= 0.0) "₹${formatAmount(b.netBalance)}" else "-₹${formatAmount(-b.netBalance)}"
+            val netColor = if (b.netBalance >= 0.0) Color.parseColor("#0C8F6E") else Color.parseColor("#BA1A1A")
             canvas.drawText(netStr, balColX[3], y + 12f, Paint(bodyPaint).apply { isFakeBoldText = true; color = netColor })
             y += 16f
         }
 
-        y += 15f
+        y += 20f
 
-        // Draw Settlement Plan/Transactions Summary
+        // ==========================================
+        // 5. RESTRUCTURING / SETTLEMENT PLAN (AT BOTTOM)
+        // ==========================================
+        checkPageBreak(30f + maxOf(1, settlements.size) * 14f)
         canvas.drawText("RESTRUCTURING / SETTLEMENT PLAN", 25f, y, Paint(titlePaint).apply { textSize = 11f })
         y += 15f
 
@@ -415,94 +510,22 @@ object ExportEngine {
             y += 20f
         } else {
             settlements.forEach { s ->
-                val settlementText = "${s.debtor.name} owes ${s.creditor.name} -> ₹${String.format(Locale.US, "%.2f", s.amount)}"
+                val settlementText = "${s.debtor.name} should pay to ${s.creditor.name} -> ₹${formatAmount(s.amount)}"
                 canvas.drawText(settlementText, 25f, y + 10f, bodyPaint)
                 y += 14f
             }
             y += 10f
         }
 
-        y += 20f
-
-        // Check if page space is running low, force page break before detailed transaction history
-        if (y > 500f) {
-            pdfDocument.finishPage(page)
-            pageNumber++
-            pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
-            page = pdfDocument.startPage(pageInfo)
-            canvas = page.canvas
-            y = 50f
-        }
-
-        // Table List
-        canvas.drawText("ITEMIZED TRANSACTION HISTORY", 25f, y, Paint(titlePaint).apply { textSize = 11f })
-        y += 15f
-
-        val colX = floatArrayOf(25f, 120f, 220f, 340f, 460f)
-        canvas.drawRect(25f, y, 570f, y + 22f, primaryColorPaint)
-        canvas.drawText("Date", colX[0] + 5f, y + 15f, Paint(headerPaint).apply { textSize = 9f })
-        canvas.drawText("Category", colX[1], y + 15f, headerPaint)
-        canvas.drawText("Description", colX[2], y + 15f, headerPaint)
-        canvas.drawText("Paid By", colX[3], y + 15f, headerPaint)
-        canvas.drawText("Amount", colX[4], y + 15f, headerPaint)
-        y += 22f
-
-        val listSdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
-
-        expenses.forEachIndexed { index, exp ->
-            if (y > 780f) {
-                // Perform complete elegant page-break sequence
-                pdfDocument.finishPage(page)
-                pageNumber++
-                pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
-                page = pdfDocument.startPage(pageInfo)
-                canvas = page.canvas
-
-                canvas.drawRect(Rect(0, 0, 595, 40), primaryColorPaint)
-                canvas.drawText("ITEMIZED TRANSACTION HISTORY (Continued)", 25f, 25f, Paint(headerPaint).apply { textSize = 12f })
-
-                y = 55f
-                canvas.drawRect(25f, y, 570f, y + 22f, primaryColorPaint)
-                canvas.drawText("Date", colX[0] + 5f, y + 15f, Paint(headerPaint).apply { textSize = 9f })
-                canvas.drawText("Category", colX[1], y + 15f, headerPaint)
-                canvas.drawText("Description", colX[2], y + 15f, headerPaint)
-                canvas.drawText("Paid By", colX[3], y + 15f, headerPaint)
-                canvas.drawText("Amount", colX[4], y + 15f, headerPaint)
-                y += 22f
-            }
-
-            canvas.drawRect(25f, y, 570f, y + 18f, if (index % 2 == 0) rowPaint else altRowPaint)
-            canvas.drawLine(25f, y + 18f, 570f, y + 18f, cellBorderPaint)
-
-            val dateText = listSdf.format(Date(exp.date))
-            val categoryText = if (exp.category.length > 15) exp.category.take(13) + ".." else exp.category
-            val descText = if (exp.description.length > 20) exp.description.take(18) + ".." else exp.description
-            val payerName = members.find { it.id == exp.paidById }?.name ?: "Unknown"
-            val amtText = "₹${String.format(Locale.US, "%.2f", exp.amount)}"
-
-            canvas.drawText(dateText, colX[0] + 5f, y + 13f, bodyPaint)
-            canvas.drawText(categoryText, colX[1], y + 13f, bodyPaint)
-            canvas.drawText(descText, colX[2], y + 13f, bodyPaint)
-            canvas.drawText(payerName, colX[3], y + 13f, bodyPaint)
-            canvas.drawText(amtText, colX[4], y + 13f, Paint(bodyPaint).apply { isFakeBoldText = true })
-            y += 18f
-        }
-
         // Draw Footer
-        if (y > 780f) {
-            pdfDocument.finishPage(page)
-            pageNumber++
-            pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
-            page = pdfDocument.startPage(pageInfo)
-            canvas = page.canvas
-            y = 40f
-        }
+        checkPageBreak(30f)
         canvas.drawLine(25f, y + 10f, 570f, y + 10f, Paint().apply { color = Color.LTGRAY; strokeWidth = 1f })
         canvas.drawText("End of Audit Report. Total items parsed: ${expenses.size}", 25f, y + 25f, Paint(subTitlePaint).apply { textSize = 8f; color = Color.GRAY })
 
         pdfDocument.finishPage(page)
 
-        val file = File(context.cacheDir, "report_${spaceName.replace(" ", "_").lowercase()}_${System.currentTimeMillis()}.pdf")
+        val sharedDir = File(context.cacheDir, "shared").also { it.mkdirs() }
+        val file = File(sharedDir, "report_${spaceName.replace(" ", "_").lowercase()}_${System.currentTimeMillis()}.pdf")
         FileOutputStream(file).use {
             pdfDocument.writeTo(it)
         }
@@ -568,14 +591,14 @@ object ExportEngine {
         // Draw Header Banner
         canvas.drawRect(Rect(0, 0, 595, 80), primaryColorPaint)
         canvas.drawText("WALLET FINANCIAL REPORT", 25f, 42f, Paint(headerPaint).apply { textSize = 18f })
-        canvas.drawText("Generated locally by Travel Split", 25f, 62f, Paint(headerPaint).apply { textSize = 10f })
+        canvas.drawText("Generated by Travel Split", 25f, 62f, Paint(headerPaint).apply { textSize = 10f })
 
         var y = 110f
 
         // Metadata
         canvas.drawText("Wallet Profile: ${wallet.name} (${wallet.type})", 25f, y, Paint(titlePaint).apply { textSize = 14f })
         y += 20f
-        val genSdf = SimpleDateFormat("MMMM dd, yyyy 'at' hh:mm a", Locale.US)
+        val genSdf = SimpleDateFormat("dd-MM-yyyy hh:mm a", Locale.US)
         canvas.drawText("Export Date: ${genSdf.format(Date())}", 25f, y, subTitlePaint)
         y += 30f
 
@@ -585,11 +608,11 @@ object ExportEngine {
 
         canvas.drawRoundRect(25f, y, 280f, y + 60f, 15f, 15f, lightGrayPaint)
         canvas.drawText("CURRENT LEDGER BALANCE", 40f, y + 23f, Paint(subTitlePaint).apply { isFakeBoldText = true; color = Color.GRAY; textSize = 8f })
-        canvas.drawText("₹${String.format(Locale.US, "%.2f", wallet.balance)}", 40f, y + 48f, Paint(titlePaint).apply { textSize = 18f; color = Color.parseColor("#0C6B58") })
+        canvas.drawText("₹${formatAmount(wallet.balance)}", 40f, y + 48f, Paint(titlePaint).apply { textSize = 18f; color = Color.parseColor("#0C6B58") })
 
         canvas.drawRoundRect(310f, y, 570f, y + 60f, 15f, 15f, lightGrayPaint)
         canvas.drawText("TOTAL SPENT / FUNDED", 325f, y + 23f, Paint(subTitlePaint).apply { isFakeBoldText = true; color = Color.GRAY; textSize = 8f })
-        canvas.drawText("₹${String.format(Locale.US, "%.2f", totalSpent)}", 325f, y + 48f, Paint(titlePaint).apply { textSize = 18f; color = Color.parseColor("#E37B31") })
+        canvas.drawText("₹${formatAmount(totalSpent)}", 325f, y + 48f, Paint(titlePaint).apply { textSize = 18f; color = Color.parseColor("#E37B31") })
 
         y += 85f
 
@@ -608,7 +631,7 @@ object ExportEngine {
                 val barEnd = 180f + if (barWidth < 4f) 4f else barWidth
                 canvas.drawRoundRect(180f, y + 2f, barEnd, y + 10f, 4f, 4f, accentColorPaint)
 
-                canvas.drawText("${String.format(Locale.US, "%.1f", pct * 100f)}% (₹${String.format(Locale.US, "%.2f", amt)})", 460f, y + 10f, Paint(bodyPaint).apply { isFakeBoldText = true })
+                canvas.drawText("${String.format(Locale.US, "%.1f", pct * 100f)}% (₹${formatAmount(amt)})", 460f, y + 10f, Paint(bodyPaint).apply { isFakeBoldText = true })
                 y += 18f
             }
         } else {
@@ -622,7 +645,7 @@ object ExportEngine {
         canvas.drawText("ITEMIZED TRANSACTION HISTORY", 25f, y, Paint(titlePaint).apply { textSize = 11f })
         y += 15f
 
-        val colX = floatArrayOf(25f, 130f, 250f, 420f, 490f)
+        val colX = floatArrayOf(25f, 145f, 250f, 420f, 490f)
         canvas.drawRect(25f, y, 570f, y + 22f, primaryColorPaint)
         canvas.drawText("Date", colX[0] + 5f, y + 15f, Paint(headerPaint).apply { textSize = 9f })
         canvas.drawText("Category", colX[1], y + 15f, headerPaint)
@@ -635,7 +658,7 @@ object ExportEngine {
         val altRowPaint = Paint().apply { color = Color.parseColor("#F9FAFB") }
         val cellBorderPaint = Paint().apply { color = Color.parseColor("#E5E7EB"); strokeWidth = 1f }
 
-        val listSdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
+        val listSdf = SimpleDateFormat("dd-MM-yyyy hh:mm a", Locale.US)
 
         walletExpenses.forEachIndexed { index, exp ->
             if (y > 780f) {
@@ -665,7 +688,7 @@ object ExportEngine {
             val categoryText = if (exp.category.length > 15) exp.category.take(13) + ".." else exp.category
             val descText = if (exp.description.length > 22) exp.description.take(20) + ".." else exp.description
             val payerName = members.find { it.id == exp.paidById }?.name ?: "Unknown"
-            val amtText = "₹${String.format(Locale.US, "%.2f", exp.amount)}"
+            val amtText = "₹${formatAmount(exp.amount)}"
 
             canvas.drawText(dateText, colX[0] + 5f, y + 13f, bodyPaint)
             canvas.drawText(categoryText, colX[1], y + 13f, bodyPaint)
@@ -689,11 +712,116 @@ object ExportEngine {
 
         pdfDocument.finishPage(page)
 
-        val file = File(context.cacheDir, "report_wallet_${wallet.name.replace(" ", "_").lowercase()}_${System.currentTimeMillis()}.pdf")
+        val sharedDir = File(context.cacheDir, "shared").also { it.mkdirs() }
+        val file = File(sharedDir, "report_wallet_${wallet.name.replace(" ", "_").lowercase()}_${System.currentTimeMillis()}.pdf")
         FileOutputStream(file).use {
             pdfDocument.writeTo(it)
         }
         pdfDocument.close()
         return file
+    }
+
+    fun exportSpacePackageZip(
+        context: Context,
+        spaceName: String,
+        expenses: List<Expense>,
+        members: List<User>,
+        wallets: List<Wallet>,
+        balances: List<MemberBalance>,
+        settlements: List<SettlementTransaction>,
+        splits: List<ExpenseSplit>
+    ): File? {
+        val rootCache = File(context.cacheDir, "shared")
+        if (!rootCache.exists()) rootCache.mkdirs()
+
+        val zipFile = File(rootCache, "TravelSplit_Space_${spaceName.replace(" ", "_")}_Export_${System.currentTimeMillis()}.zip")
+
+        try {
+            ZipOutputStream(FileOutputStream(zipFile)).use { zos ->
+                // 1. Export Excel
+                val xlsxFile = exportSpaceToExcel(context, spaceName, expenses, members, wallets, balances, settlements)
+                if (xlsxFile != null && xlsxFile.exists()) {
+                    zos.putNextEntry(ZipEntry("ledger_${spaceName.replace(" ", "_")}.xlsx"))
+                    FileInputStream(xlsxFile).use { it.copyTo(zos) }
+                    zos.closeEntry()
+                }
+
+                // 2. Export CSV
+                val csvFile = exportSpaceToCSV(context, spaceName, expenses, members, wallets)
+                if (csvFile != null && csvFile.exists()) {
+                    zos.putNextEntry(ZipEntry("ledger_${spaceName.replace(" ", "_")}.csv"))
+                    FileInputStream(csvFile).use { it.copyTo(zos) }
+                    zos.closeEntry()
+                }
+
+                // 3. Export PDF Report
+                val pdfFile = generateSpaceReportPDF(context, spaceName, expenses, members, wallets, balances, settlements, splits)
+                if (pdfFile != null && pdfFile.exists()) {
+                    zos.putNextEntry(ZipEntry("report_${spaceName.replace(" ", "_")}.pdf"))
+                    FileInputStream(pdfFile).use { it.copyTo(zos) }
+                    zos.closeEntry()
+                }
+
+                // 4. Export Photo / Bill attachments
+                val addedPhotoNames = mutableSetOf<String>()
+                expenses.forEach { expense ->
+                    expense.attachmentUris?.forEachIndexed { index, uriStr ->
+                        try {
+                            if (uriStr.isNotBlank()) {
+                                val uri = Uri.parse(uriStr)
+                                val inputStream = context.contentResolver.openInputStream(uri)
+                                if (inputStream != null) {
+                                    val extension = when (context.contentResolver.getType(uri)) {
+                                        "image/png" -> "png"
+                                        "image/gif" -> "gif"
+                                        else -> "jpg"
+                                    }
+                                    val safeDescription = expense.description.replace("[^a-zA-Z0-9]".toRegex(), "_").take(15)
+                                    var entryName = "attachments/bill_${expense.id}_${safeDescription}_$index.$extension"
+                                    var counter = 1
+                                    while (addedPhotoNames.contains(entryName)) {
+                                        entryName = "attachments/bill_${expense.id}_${safeDescription}_${index}_$counter.$extension"
+                                        counter++
+                                    }
+                                    addedPhotoNames.add(entryName)
+
+                                    zos.putNextEntry(ZipEntry(entryName))
+                                    inputStream.use { it.copyTo(zos) }
+                                    zos.closeEntry()
+                                }
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                            // If contentResolver fails, try loading as local File path if it's a file URI
+                            try {
+                                val path = if (uriStr.startsWith("file://")) uriStr.substring(7) else uriStr
+                                val file = File(path)
+                                if (file.exists() && file.isFile) {
+                                    val safeDescription = expense.description.replace("[^a-zA-Z0-9]".toRegex(), "_").take(15)
+                                    val extension = file.extension.ifBlank { "jpg" }
+                                    var entryName = "attachments/bill_${expense.id}_${safeDescription}_$index.$extension"
+                                    var counter = 1
+                                    while (addedPhotoNames.contains(entryName)) {
+                                        entryName = "attachments/bill_${expense.id}_${safeDescription}_${index}_$counter.$extension"
+                                        counter++
+                                    }
+                                    addedPhotoNames.add(entryName)
+
+                                    zos.putNextEntry(ZipEntry(entryName))
+                                    FileInputStream(file).use { it.copyTo(zos) }
+                                    zos.closeEntry()
+                                }
+                            } catch (ex: Exception) {
+                                ex.printStackTrace()
+                            }
+                        }
+                    }
+                }
+            }
+            return zipFile
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return null
+        }
     }
 }

@@ -56,7 +56,7 @@ fun ToolsScreen(
                 .padding(horizontal = 20.dp, vertical = 16.dp)
         ) {
             Text(
-                text = "Ledger Audit Utilities",
+                text = if (selectedTab == 3) "Cash & Online Counter" else "Ledger Audit Utilities",
                 color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Black,
@@ -64,7 +64,11 @@ fun ToolsScreen(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Natively styled calculation engines for EMI, Interest dynamic yields, and precise tax breakdowns.",
+                text = if (selectedTab == 3) {
+                    "Count physical currency denominations and track digital online wallet balances dynamically."
+                } else {
+                    "Natively styled calculation engines for EMI, Interest dynamic yields, and precise tax breakdowns."
+                },
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 fontSize = 12.sp,
                 lineHeight = 16.sp
@@ -134,22 +138,28 @@ fun EmiCalculatorPanel(
     // Recompiles calculation outcomes as inputs change
     val principal = principalText.toDoubleOrNull() ?: 0.0
     val annualRate = rateText.toDoubleOrNull() ?: 0.0
-    val years = yearsText.toIntOrNull() ?: 0
+    val years = yearsText.toDoubleOrNull() ?: 0.0
 
     val emi = remember(principal, annualRate, years) {
-        if (principal <= 0.0 || annualRate < 0.0 || years <= 0) 0.0
+        if (principal <= 0.0 || annualRate < 0.0 || years <= 0.0 || principal.isNaN() || annualRate.isNaN() || years.isNaN() || !principal.isFinite() || !annualRate.isFinite() || !years.isFinite()) 0.0
         else {
-            val r = (annualRate / 12) / 100
-            val n = years * 12
-            if (r == 0.0) principal / n
+            val r = (annualRate / 12.0) / 100.0
+            val n = Math.round(years * 12).toInt()
+            if (n <= 0) 0.0
+            else if (n > 600) 0.0
+            else if (r == 0.0) principal / n
             else {
-                val factor = Math.pow(1 + r, n.toDouble())
-                principal * r * (factor / (factor - 1))
+                val factor = Math.pow(1.0 + r, n.toDouble())
+                if (factor.isInfinite() || factor.isNaN() || factor == 1.0) 0.0
+                else principal * r * (factor / (factor - 1.0))
             }
         }
     }
 
-    val totalPayment = if (emi > 0.0 && years > 0) emi * (years * 12) else 0.0
+    val totalPayment = if (emi > 0.0 && years > 0.0) {
+        val n = Math.round(years * 12).toInt()
+        emi * n
+    } else 0.0
     val totalInterest = if (totalPayment > 0.0) totalPayment - principal else 0.0
 
     LazyColumn(
@@ -253,7 +263,7 @@ fun EmiCalculatorPanel(
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "₹${String.format(Locale.US, "%.2f", emi)}",
+                        text = "₹${formatAmount(emi)}",
                         color = MaterialTheme.colorScheme.primary,
                         fontSize = 32.sp,
                         fontWeight = FontWeight.Black
@@ -268,21 +278,21 @@ fun EmiCalculatorPanel(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Total Principal", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
-                            Text("₹${String.format(Locale.US, "%.2f", principal)}", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("₹${formatAmount(principal)}", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
                         Column(
                             modifier = Modifier.weight(1f),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text("Total Interest", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
-                            Text("₹${String.format(Locale.US, "%.2f", totalInterest)}", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("₹${formatAmount(totalInterest)}", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
                         Column(
                             modifier = Modifier.weight(1f),
                             horizontalAlignment = Alignment.End
                         ) {
                             Text("Payment Sum", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
-                            Text("₹${String.format(Locale.US, "%.2f", totalPayment)}", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Black, fontSize = 14.sp)
+                            Text("₹${formatAmount(totalPayment)}", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Black, fontSize = 14.sp)
                         }
                     }
                 }
@@ -363,7 +373,7 @@ fun InterestCalculatorPanel(
     val years = yearsText.toDoubleOrNull() ?: 0.0
 
     val outputs = remember(principal, rate, years, isCompound, compoundFrequency) {
-        if (principal <= 0.0 || rate < 0.0 || years < 0.0) Pair(0.0, 0.0)
+        if (principal <= 0.0 || rate < 0.0 || years < 0.0 || principal.isNaN() || rate.isNaN() || years.isNaN() || !principal.isFinite() || !rate.isFinite() || !years.isFinite()) Pair(0.0, 0.0)
         else {
             if (!isCompound) {
                 val interest = (principal * rate * years) / 100
@@ -560,7 +570,7 @@ fun InterestCalculatorPanel(
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "₹${String.format(Locale.US, "%.2f", accumulatedTotal)}",
+                        text = "₹${formatAmount(accumulatedTotal)}",
                         color = MaterialTheme.colorScheme.primary,
                         fontSize = 32.sp,
                         fontWeight = FontWeight.Black
@@ -575,14 +585,14 @@ fun InterestCalculatorPanel(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Initial Capital", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
-                            Text("₹${String.format(Locale.US, "%.2f", principal)}", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("₹${formatAmount(principal)}", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
                         Column(
                             modifier = Modifier.weight(1f),
                             horizontalAlignment = Alignment.End
                         ) {
                             Text("Total Yield (Interest)", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
-                            Text("₹${String.format(Locale.US, "%.2f", interestEarned)}", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("₹${formatAmount(interestEarned)}", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
                     }
                 }
@@ -656,10 +666,10 @@ fun GstCalculatorPanel(
     var isInclusive by remember { mutableStateOf(false) } // False = Tax Exclusive (Add), True = Tax Inclusive (Extract)
 
     val baseAmount = baseText.toDoubleOrNull() ?: 0.0
-    val taxRate = taxRateText.toDoubleOrNull() ?: 0.0
+    val taxRate = (taxRateText.toDoubleOrNull() ?: 0.0).coerceIn(0.0, 100.0)
 
     val outcomes = remember(baseAmount, taxRate, isInclusive) {
-        if (baseAmount <= 0.0 || taxRate < 0.0) Triple(0.0, 0.0, 0.0)
+        if (baseAmount <= 0.0 || taxRate < 0.0 || baseAmount.isNaN() || taxRate.isNaN() || !baseAmount.isFinite() || !taxRate.isFinite()) Triple(0.0, 0.0, 0.0)
         else {
             if (!isInclusive) {
                 // Add Tax
@@ -836,7 +846,7 @@ fun GstCalculatorPanel(
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "₹${String.format(Locale.US, "%.2f", calculatedTax)}",
+                        text = "₹${formatAmount(calculatedTax)}",
                         color = MaterialTheme.colorScheme.secondary,
                         fontSize = 32.sp,
                         fontWeight = FontWeight.Black
@@ -851,11 +861,11 @@ fun GstCalculatorPanel(
                     ) {
                         Column {
                             Text("Tax-Exclusive Price", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
-                            Text("₹${String.format(Locale.US, "%.2f", finalBase)}", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("₹${formatAmount(finalBase)}", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
                         Column(horizontalAlignment = Alignment.End) {
                             Text("Tax-Inclusive Price", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
-                            Text("₹${String.format(Locale.US, "%.2f", finalTotal)}", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Black, fontSize = 14.sp)
+                            Text("₹${formatAmount(finalTotal)}", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Black, fontSize = 14.sp)
                         }
                     }
                 }
@@ -955,25 +965,51 @@ fun CashCalculatorPanel() {
 
     val countTextMap = remember { mutableStateMapOf<Int, String>() }
 
-    var amazonPayText by remember { mutableStateOf("") }
-    var upiGPayText by remember { mutableStateOf("") }
-    var cardNetBankingText by remember { mutableStateOf("") }
+    var allOnlineWalletsStr by remember {
+        mutableStateOf(sharedPrefs.getString("all_online_wallets", "Amazon Pay,UPI / Google Pay,Card / NetBanking") ?: "Amazon Pay,UPI / Google Pay,Card / NetBanking")
+    }
+    var enabledOnlineWalletsStr by remember {
+        mutableStateOf(sharedPrefs.getString("enabled_online_wallets", "Amazon Pay,UPI / Google Pay,Card / NetBanking") ?: "Amazon Pay,UPI / Google Pay,Card / NetBanking")
+    }
+    val defaultOnlineWallets = remember { listOf("Amazon Pay", "UPI / Google Pay", "Card / NetBanking") }
+
+    val allOnlineWallets = remember(allOnlineWalletsStr) {
+        allOnlineWalletsStr.split(",")
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+    }
+
+    val enabledOnlineWalletsSet = remember(enabledOnlineWalletsStr) {
+        enabledOnlineWalletsStr.split(",")
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .toSet()
+    }
+
+    val enabledOnlineWallets = remember(enabledOnlineWalletsSet) {
+        allOnlineWallets.filter { enabledOnlineWalletsSet.contains(it) }
+    }
+
+    val onlineWalletTextMap = remember { mutableStateMapOf<String, String>() }
 
     val counts = denominations.associateWith { countTextMap[it]?.toIntOrNull() ?: 0 }
-    val subtotals = denominations.associateWith { it * (counts[it] ?: 0) }
+    val subtotals = denominations.associateWith { it.toLong() * (counts[it] ?: 0) }
     val cashGrandTotal = subtotals.values.sum()
+    var showClearConfirmation by remember { mutableStateOf(false) }
 
-    val amazonPayAmount = amazonPayText.toDoubleOrNull() ?: 0.0
-    val upiGPayAmount = upiGPayText.toDoubleOrNull() ?: 0.0
-    val cardNetBankingAmount = cardNetBankingText.toDoubleOrNull() ?: 0.0
-    val onlineTotal = if (showOnline) (amazonPayAmount + upiGPayAmount + cardNetBankingAmount) else 0.0
+    val onlineTotal = if (showOnline) {
+        enabledOnlineWallets.sumOf { onlineWalletTextMap[it]?.toDoubleOrNull() ?: 0.0 }
+    } else 0.0
 
     val grandTotal = cashGrandTotal + onlineTotal
     val totalNotes = counts.values.sum()
 
     var showCurrencyDialog by remember { mutableStateOf(false) }
     var showDenomManager by remember { mutableStateOf(false) }
+    var showOnlineWalletManager by remember { mutableStateOf(false) }
     var showAddCustomDenomDialog by remember { mutableStateOf(false) }
+    var showAddCustomOnlineWalletDialog by remember { mutableStateOf(false) }
 
     val currencyOptions = listOf(
         "INR" to "₹",
@@ -1038,16 +1074,22 @@ fun CashCalculatorPanel() {
                                 modifier = Modifier.testTag("menu_manage_denominations")
                             )
                             DropdownMenuItem(
+                                text = { Text("Add/Remove Online Wallets") },
+                                onClick = {
+                                    menuExpanded = false
+                                    showOnlineWalletManager = true
+                                },
+                                leadingIcon = { Icon(Icons.Default.CreditCard, contentDescription = null) },
+                                modifier = Modifier.testTag("menu_manage_online_wallets")
+                            )
+                            DropdownMenuItem(
                                 text = {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text("Show Online")
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Checkbox(
                                             checked = showOnline,
-                                            onCheckedChange = { checked ->
-                                                showOnline = checked
-                                                sharedPrefs.edit().putBoolean("show_online", checked).apply()
-                                            },
+                                            onCheckedChange = null,
                                             modifier = Modifier.testTag("menu_show_online_checkbox")
                                         )
                                     }
@@ -1085,13 +1127,8 @@ fun CashCalculatorPanel() {
                                 letterSpacing = 1.2.sp
                             )
                             Spacer(modifier = Modifier.height(4.dp))
-                            val grandTotalFormatted = if (grandTotal % 1 == 0.0) {
-                                String.format(Locale.US, "%,d", grandTotal.toLong())
-                            } else {
-                                String.format(Locale.US, "%,.2f", grandTotal)
-                            }
                             Text(
-                                text = "$selectedCurrencySymbol$grandTotalFormatted",
+                                text = "$selectedCurrencySymbol${formatAmount(grandTotal)}",
                                 fontSize = 32.sp,
                                 fontWeight = FontWeight.Black,
                                 color = MaterialTheme.colorScheme.primary,
@@ -1204,7 +1241,7 @@ fun CashCalculatorPanel() {
 
                         val sub = subtotals[denom] ?: 0
                         Text(
-                            text = if (sub > 0) "$selectedCurrencySymbol${String.format(Locale.US, "%,d", sub)}" else "—",
+                            text = if (sub > 0) "$selectedCurrencySymbol${formatAmount(sub)}" else "—",
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp,
                             color = if (sub > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
@@ -1237,169 +1274,69 @@ fun CashCalculatorPanel() {
                             modifier = Modifier.padding(12.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            // Amazon Pay Row
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
+                            if (enabledOnlineWallets.isEmpty()) {
                                 Text(
-                                    text = "Amazon Pay",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    text = "No online wallets enabled.",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.padding(vertical = 8.dp)
                                 )
-                                OutlinedTextField(
-                                    value = amazonPayText,
-                                    onValueChange = { newVal ->
-                                        if (newVal.isEmpty() || newVal.all { it.isDigit() || it == '.' }) {
-                                            amazonPayText = newVal
-                                        }
-                                    },
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                    singleLine = true,
-                                    textStyle = androidx.compose.ui.text.TextStyle(
-                                        textAlign = TextAlign.End,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    ),
-                                    placeholder = {
+                            } else {
+                                enabledOnlineWallets.forEach { wallet ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
                                         Text(
-                                            text = "0.00",
+                                            text = wallet,
+                                            fontWeight = FontWeight.Bold,
                                             fontSize = 14.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                                            modifier = Modifier.fillMaxWidth(),
-                                            textAlign = TextAlign.End
+                                            color = MaterialTheme.colorScheme.onSurface
                                         )
-                                    },
-                                    prefix = {
-                                        Text(
-                                            text = selectedCurrencySymbol,
-                                            fontSize = 14.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        OutlinedTextField(
+                                            value = onlineWalletTextMap[wallet] ?: "",
+                                            onValueChange = { newVal ->
+                                                if (newVal.isEmpty() || newVal.all { it.isDigit() || it == '.' }) {
+                                                    onlineWalletTextMap[wallet] = newVal
+                                                }
+                                            },
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                            singleLine = true,
+                                            textStyle = androidx.compose.ui.text.TextStyle(
+                                                textAlign = TextAlign.End,
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            ),
+                                            placeholder = {
+                                                Text(
+                                                    text = "0.00",
+                                                    fontSize = 14.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    textAlign = TextAlign.End
+                                                )
+                                            },
+                                            prefix = {
+                                                Text(
+                                                    text = selectedCurrencySymbol,
+                                                    fontSize = 14.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            },
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                                unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                                            ),
+                                            modifier = Modifier.width(160.dp).testTag("online_${wallet.lowercase().replace(" ", "_")}")
                                         )
-                                    },
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
-                                    ),
-                                    modifier = Modifier.width(160.dp).testTag("online_amazon_pay")
-                                )
-                            }
-
-                            // GPay/UPI Row
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = "UPI / Google Pay",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                OutlinedTextField(
-                                    value = upiGPayText,
-                                    onValueChange = { newVal ->
-                                        if (newVal.isEmpty() || newVal.all { it.isDigit() || it == '.' }) {
-                                            upiGPayText = newVal
-                                        }
-                                    },
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                    singleLine = true,
-                                    textStyle = androidx.compose.ui.text.TextStyle(
-                                        textAlign = TextAlign.End,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    ),
-                                    placeholder = {
-                                        Text(
-                                            text = "0.00",
-                                            fontSize = 14.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                                            modifier = Modifier.fillMaxWidth(),
-                                            textAlign = TextAlign.End
-                                        )
-                                    },
-                                    prefix = {
-                                        Text(
-                                            text = selectedCurrencySymbol,
-                                            fontSize = 14.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    },
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
-                                    ),
-                                    modifier = Modifier.width(160.dp).testTag("online_gpay_upi")
-                                )
-                            }
-
-                            // Card Row
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = "Card / NetBanking",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                OutlinedTextField(
-                                    value = cardNetBankingText,
-                                    onValueChange = { newVal ->
-                                        if (newVal.isEmpty() || newVal.all { it.isDigit() || it == '.' }) {
-                                            cardNetBankingText = newVal
-                                        }
-                                    },
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                    singleLine = true,
-                                    textStyle = androidx.compose.ui.text.TextStyle(
-                                        textAlign = TextAlign.End,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    ),
-                                    placeholder = {
-                                        Text(
-                                            text = "0.00",
-                                            fontSize = 14.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                                            modifier = Modifier.fillMaxWidth(),
-                                            textAlign = TextAlign.End
-                                        )
-                                    },
-                                    prefix = {
-                                        Text(
-                                            text = selectedCurrencySymbol,
-                                            fontSize = 14.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    },
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
-                                    ),
-                                    modifier = Modifier.width(160.dp).testTag("online_card_netbanking")
-                                )
+                                    }
+                                }
                             }
                         }
                     }
@@ -1426,7 +1363,7 @@ fun CashCalculatorPanel() {
                             }
                             Column(horizontalAlignment = Alignment.End) {
                                 Text("Cash Value Sum", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("$selectedCurrencySymbol${String.format(Locale.US, "%,d", cashGrandTotal)}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                Text("$selectedCurrencySymbol${formatAmount(cashGrandTotal)}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                             }
                         }
                         
@@ -1440,7 +1377,7 @@ fun CashCalculatorPanel() {
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text("Online Balances", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("$selectedCurrencySymbol${String.format(Locale.US, "%,.2f", onlineTotal)}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
+                                Text("$selectedCurrencySymbol${formatAmount(onlineTotal)}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
                             }
                         }
                         
@@ -1454,12 +1391,7 @@ fun CashCalculatorPanel() {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text("GRAND TOTAL", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                            val grandTotalFormatted = if (grandTotal % 1 == 0.0) {
-                                String.format(Locale.US, "%,d", grandTotal.toLong())
-                            } else {
-                                String.format(Locale.US, "%,.2f", grandTotal)
-                            }
-                            Text("$selectedCurrencySymbol$grandTotalFormatted", fontSize = 18.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary, modifier = Modifier.testTag("cash_grand_total_summary"))
+                            Text("$selectedCurrencySymbol${formatAmount(grandTotal)}", fontSize = 18.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary, modifier = Modifier.testTag("cash_grand_total_summary"))
                         }
                     }
                 }
@@ -1473,12 +1405,34 @@ fun CashCalculatorPanel() {
                         .padding(vertical = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    if (showClearConfirmation) {
+                        AlertDialog(
+                            onDismissRequest = { showClearConfirmation = false },
+                            title = { Text("Clear Counter Data?") },
+                            text = { Text("Are you sure you want to clear all denomination counts and wallet balances? This cannot be undone.") },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        showClearConfirmation = false
+                                        denominations.forEach { countTextMap[it] = "" }
+                                        enabledOnlineWallets.forEach { onlineWalletTextMap[it] = "" }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                ) {
+                                    Text("Clear")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showClearConfirmation = false }) {
+                                    Text("Cancel")
+                                }
+                            }
+                        )
+                    }
+
                     Button(
                         onClick = {
-                            denominations.forEach { countTextMap[it] = "" }
-                            amazonPayText = ""
-                            upiGPayText = ""
-                            cardNetBankingText = ""
+                            showClearConfirmation = true
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         modifier = Modifier.weight(1f).height(46.dp).testTag("cash_counter_clear_btn"),
@@ -1497,28 +1451,26 @@ fun CashCalculatorPanel() {
                                     denominations.forEach { denom ->
                                         val qty = counts[denom] ?: 0
                                         if (qty > 0) {
-                                            sb.append("$selectedCurrencySymbol$denom x $qty = $selectedCurrencySymbol${String.format(Locale.US, "%,d", subtotals[denom])}\n")
+                                            sb.append("$selectedCurrencySymbol$denom x $qty = $selectedCurrencySymbol${formatAmount(subtotals[denom] ?: 0)}\n")
                                         }
                                     }
                                     sb.append("Total Notes/Coins: $totalNotes\n")
-                                    sb.append("Cash Total: $selectedCurrencySymbol${String.format(Locale.US, "%,d", cashGrandTotal)}\n\n")
+                                    sb.append("Cash Total: $selectedCurrencySymbol${formatAmount(cashGrandTotal)}\n\n")
                                 }
                                 
                                 if (showOnline && onlineTotal > 0.0) {
                                     sb.append("--- Online Balances ---\n")
-                                    if (amazonPayAmount > 0.0) sb.append("Amazon Pay: $selectedCurrencySymbol${String.format(Locale.US, "%.2f", amazonPayAmount)}\n")
-                                    if (upiGPayAmount > 0.0) sb.append("UPI / Google Pay: $selectedCurrencySymbol${String.format(Locale.US, "%.2f", upiGPayAmount)}\n")
-                                    if (cardNetBankingAmount > 0.0) sb.append("Card / NetBanking: $selectedCurrencySymbol${String.format(Locale.US, "%.2f", cardNetBankingAmount)}\n")
-                                    sb.append("Online Total: $selectedCurrencySymbol${String.format(Locale.US, "%.2f", onlineTotal)}\n\n")
+                                    enabledOnlineWallets.forEach { wallet ->
+                                        val amt = onlineWalletTextMap[wallet]?.toDoubleOrNull() ?: 0.0
+                                        if (amt > 0.0) {
+                                            sb.append("$wallet: $selectedCurrencySymbol${formatAmount(amt)}\n")
+                                        }
+                                    }
+                                    sb.append("Online Total: $selectedCurrencySymbol${formatAmount(onlineTotal)}\n\n")
                                 }
                                 
                                 sb.append("-----------------------------\n")
-                                val grandTotalFormatted = if (grandTotal % 1 == 0.0) {
-                                    String.format(Locale.US, "%,d", grandTotal.toLong())
-                                } else {
-                                    String.format(Locale.US, "%,.2f", grandTotal)
-                                }
-                                sb.append("GRAND TOTAL: $selectedCurrencySymbol$grandTotalFormatted")
+                                sb.append("GRAND TOTAL: $selectedCurrencySymbol${formatAmount(grandTotal)}")
 
                                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                     type = "text/plain"
@@ -1680,6 +1632,147 @@ fun CashCalculatorPanel() {
                 }
             }
         }
+        
+        // Sub-screen overlay for Online Wallet Manager (Slide-in from right)
+        AnimatedVisibility(
+            visible = showOnlineWalletManager,
+            enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+            exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxSize().testTag("online_wallet_manager_surface"),
+                color = MaterialTheme.colorScheme.background
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                ) {
+                    // Header
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = { showOnlineWalletManager = false },
+                            modifier = Modifier.testTag("online_wallet_manager_back_btn")
+                        ) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Manage Online Wallets",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // Add Button
+                    Button(
+                        onClick = { showAddCustomOnlineWalletDialog = true },
+                        modifier = Modifier.fillMaxWidth().testTag("add_custom_online_wallet_btn"),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Add Custom Online Wallet", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // Wallets List
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(allOnlineWallets) { wallet ->
+                            val isEnabled = enabledOnlineWalletsSet.contains(wallet)
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isEnabled) 
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.05f) 
+                                    else 
+                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.05f)
+                                ),
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(
+                                    width = 1.dp,
+                                    color = if (isEnabled) 
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) 
+                                    else 
+                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                                ),
+                                modifier = Modifier.fillMaxWidth().testTag("online_wallet_item_$wallet")
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = wallet,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 16.sp,
+                                            color = if (isEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        if (!defaultOnlineWallets.contains(wallet)) {
+                                            IconButton(
+                                                onClick = {
+                                                    val newAll = allOnlineWallets - wallet
+                                                    val newEnabled = enabledOnlineWalletsSet - wallet
+                                                    
+                                                    allOnlineWalletsStr = newAll.joinToString(",")
+                                                    enabledOnlineWalletsStr = newEnabled.joinToString(",")
+                                                    
+                                                    sharedPrefs.edit()
+                                                        .putString("all_online_wallets", allOnlineWalletsStr)
+                                                        .putString("enabled_online_wallets", enabledOnlineWalletsStr)
+                                                        .apply()
+                                                    
+                                                    Toast.makeText(context, "Removed wallet $wallet", Toast.LENGTH_SHORT).show()
+                                                },
+                                                modifier = Modifier.testTag("delete_online_wallet_$wallet")
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Delete,
+                                                    contentDescription = "Delete Custom Wallet",
+                                                    tint = MaterialTheme.colorScheme.error
+                                                )
+                                            }
+                                        }
+                                        
+                                        Switch(
+                                            checked = isEnabled,
+                                            onCheckedChange = { checked ->
+                                                val newEnabled = if (checked) {
+                                                    enabledOnlineWalletsSet + wallet
+                                                } else {
+                                                    enabledOnlineWalletsSet - wallet
+                                                }
+                                                enabledOnlineWalletsStr = newEnabled.joinToString(",")
+                                                sharedPrefs.edit().putString("enabled_online_wallets", enabledOnlineWalletsStr).apply()
+                                            },
+                                            modifier = Modifier.testTag("switch_online_wallet_$wallet")
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // Dialogs
@@ -1789,6 +1882,62 @@ fun CashCalculatorPanel() {
                 TextButton(
                     onClick = { showAddCustomDenomDialog = false },
                     modifier = Modifier.testTag("custom_denom_add_cancel")
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showAddCustomOnlineWalletDialog) {
+        var newWalletText by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showAddCustomOnlineWalletDialog = false },
+            title = { Text("Add Custom Online Wallet", fontWeight = FontWeight.Bold) },
+            text = {
+                OutlinedTextField(
+                    value = newWalletText,
+                    onValueChange = { newWalletText = it },
+                    label = { Text("Wallet Name (e.g. PhonePe)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("custom_online_wallet_input")
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val name = newWalletText.trim()
+                        if (name.isNotEmpty()) {
+                            if (!allOnlineWallets.contains(name)) {
+                                val newAll = allOnlineWallets + name
+                                val newEnabled = enabledOnlineWalletsSet + name
+                                
+                                allOnlineWalletsStr = newAll.joinToString(",")
+                                enabledOnlineWalletsStr = newEnabled.joinToString(",")
+                                
+                                sharedPrefs.edit()
+                                    .putString("all_online_wallets", allOnlineWalletsStr)
+                                    .putString("enabled_online_wallets", enabledOnlineWalletsStr)
+                                    .apply()
+                                
+                                Toast.makeText(context, "Wallet $name added", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "Wallet already exists", Toast.LENGTH_SHORT).show()
+                            }
+                            showAddCustomOnlineWalletDialog = false
+                        } else {
+                            Toast.makeText(context, "Enter a valid name", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.testTag("custom_online_wallet_add_confirm")
+                ) {
+                    Text("Add")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showAddCustomOnlineWalletDialog = false },
+                    modifier = Modifier.testTag("custom_online_wallet_add_cancel")
                 ) {
                     Text("Cancel")
                 }

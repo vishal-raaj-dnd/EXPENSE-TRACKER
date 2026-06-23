@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.Budget
 import com.example.data.Category
+import com.example.data.Subscription
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -42,6 +43,9 @@ fun BudgetManagerScreen(
     var isGlobal by remember { mutableStateOf(true) }
     var selectedCategoryName by remember { mutableStateOf("") }
     var limitAmountStr by remember { mutableStateOf("") }
+    
+    val expenses by viewModel.allExpenses.collectAsStateWithLifecycle(emptyList())
+    var budgetToDelete by remember { mutableStateOf<Budget?>(null) }
     
     // Automatically select first category if not global
     LaunchedEffect(isGlobal, categories) {
@@ -138,7 +142,7 @@ fun BudgetManagerScreen(
                                 DropdownMenu(
                                     expanded = expanded,
                                     onDismissRequest = { expanded = false },
-                                    modifier = Modifier.fillMaxWidth(0.9f)
+                                    modifier = Modifier.fillMaxWidth(0.9f).heightIn(max = 240.dp)
                                 ) {
                                     categories.forEach { cat ->
                                         DropdownMenuItem(
@@ -175,12 +179,12 @@ fun BudgetManagerScreen(
                                 val amt = limitAmountStr.toDoubleOrNull()
                                 if (amt != null && amt > 0.0) {
                                     val cat = if (isGlobal) null else selectedCategoryName
-                                    // Current monthYear is "05/2026"
+                                    val currentMonthYear = SimpleDateFormat("MM/yyyy", Locale.US).format(Date(System.currentTimeMillis()))
                                     viewModel.insertBudget(
                                         isGlobal = isGlobal,
                                         categoryName = cat,
                                         limitAmount = amt,
-                                        monthYear = "05/2026"
+                                        monthYear = currentMonthYear
                                     )
                                     limitAmountStr = ""
                                 }
@@ -196,8 +200,11 @@ fun BudgetManagerScreen(
 
             // Section: Current Budgets list
             item {
+                val currentMonthYearHeader = remember {
+                    SimpleDateFormat("MMMM yyyy", Locale.US).format(Date(System.currentTimeMillis()))
+                }
                 Text(
-                    text = "Active Spending Limits (May 2026)",
+                    text = "Active Spending Limits ($currentMonthYearHeader)",
                     color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
@@ -227,7 +234,7 @@ fun BudgetManagerScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                 Box(
                                     contentAlignment = Alignment.Center,
                                     modifier = Modifier
@@ -243,12 +250,43 @@ fun BudgetManagerScreen(
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(12.dp))
-                                Column {
+                                Column(modifier = Modifier.weight(1f)) {
                                     Text(text = label, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                    Text(text = "Limit: ₹${String.format(Locale.US, "%.2f", budget.limitAmount)}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    
+                                    val allowedCategories = remember(budget.categoryName, categories) {
+                                        if (budget.isGlobal) emptySet() else getCategoryAndChildrenNames(budget.categoryName ?: "", categories)
+                                    }
+                                    val budgetMonthYear = budget.monthYear
+                                    val budgetIsGlobal = budget.isGlobal
+                                    val budgetLimit = budget.limitAmount
+                                    val spentAmount = remember(expenses, budgetMonthYear, budgetIsGlobal, allowedCategories) {
+                                        expenses.filter {
+                                            val my = SimpleDateFormat("MM/yyyy", Locale.US).format(Date(it.date))
+                                            my == budgetMonthYear &&
+                                            !it.category.equals("Settlement", ignoreCase = true) &&
+                                            (budgetIsGlobal || allowedCategories.contains(it.category))
+                                        }.sumOf { it.amount }
+                                    }
+                                    val progress = if (budgetLimit > 0) (spentAmount / budgetLimit).toFloat() else 0f
+                                    val progressColor = if (spentAmount > budgetLimit) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                                    
+                                    Text(
+                                        text = "Spent: ₹${String.format(Locale.US, "%.2f", spentAmount)} of ₹${String.format(Locale.US, "%.2f", budgetLimit)}",
+                                        color = if (spentAmount > budgetLimit) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 12.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    LinearProgressIndicator(
+                                        progress = progress.coerceAtMost(1f),
+                                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                                        color = progressColor,
+                                        trackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                                    )
                                 }
                             }
-                            IconButton(onClick = { viewModel.deleteBudget(budget) }, modifier = Modifier.testTag("delete_budget_${label}")) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            IconButton(onClick = { budgetToDelete = budget }, modifier = Modifier.testTag("delete_budget_${label}")) {
                                 Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete Budget", tint = MaterialTheme.colorScheme.error)
                             }
                         }
@@ -278,6 +316,7 @@ fun SubscriptionManagerScreen(
     var selectedCategory by remember { mutableStateOf("Bills") }
     var selectedPayerId by remember { mutableStateOf<Long?>(null) }
     var intervalType by remember { mutableStateOf("Monthly") }
+    var subToDelete by remember { mutableStateOf<Subscription?>(null) }
 
     // Dropdown states
     var spaceExpanded by remember { mutableStateOf(false) }
@@ -398,11 +437,11 @@ fun SubscriptionManagerScreen(
                                     Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
-                            DropdownMenu(
-                                expanded = spaceExpanded,
-                                onDismissRequest = { spaceExpanded = false },
-                                modifier = Modifier.fillMaxWidth(0.9f)
-                            ) {
+                             DropdownMenu(
+                                 expanded = spaceExpanded,
+                                 onDismissRequest = { spaceExpanded = false },
+                                 modifier = Modifier.fillMaxWidth(0.9f).heightIn(max = 240.dp)
+                             ) {
                                 spaces.forEach { s ->
                                     DropdownMenuItem(
                                         text = { Text(s.name) },
@@ -432,11 +471,11 @@ fun SubscriptionManagerScreen(
                                     Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
-                            DropdownMenu(
-                                expanded = walletExpanded,
-                                onDismissRequest = { walletExpanded = false },
-                                modifier = Modifier.fillMaxWidth(0.9f)
-                            ) {
+                             DropdownMenu(
+                                 expanded = walletExpanded,
+                                 onDismissRequest = { walletExpanded = false },
+                                 modifier = Modifier.fillMaxWidth(0.9f).heightIn(max = 240.dp)
+                             ) {
                                 wallets.forEach { w ->
                                     DropdownMenuItem(
                                         text = { Text(w.name) },
@@ -466,11 +505,11 @@ fun SubscriptionManagerScreen(
                                     Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
-                            DropdownMenu(
-                                expanded = payerExpanded,
-                                onDismissRequest = { payerExpanded = false },
-                                modifier = Modifier.fillMaxWidth(0.9f)
-                            ) {
+                             DropdownMenu(
+                                 expanded = payerExpanded,
+                                 onDismissRequest = { payerExpanded = false },
+                                 modifier = Modifier.fillMaxWidth(0.9f).heightIn(max = 240.dp)
+                             ) {
                                 activeMembers.forEach { m ->
                                     DropdownMenuItem(
                                         text = { Text(m.name) },
@@ -499,11 +538,11 @@ fun SubscriptionManagerScreen(
                                     Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
-                            DropdownMenu(
-                                expanded = catExpanded,
-                                onDismissRequest = { catExpanded = false },
-                                modifier = Modifier.fillMaxWidth(0.9f)
-                            ) {
+                             DropdownMenu(
+                                 expanded = catExpanded,
+                                 onDismissRequest = { catExpanded = false },
+                                 modifier = Modifier.fillMaxWidth(0.9f).heightIn(max = 240.dp)
+                             ) {
                                 categories.forEach { cat ->
                                     DropdownMenuItem(
                                         text = { Text(cat.name) },
@@ -555,9 +594,19 @@ fun SubscriptionManagerScreen(
                             onClick = {
                                 val amt = amountStr.toDoubleOrNull()
                                 val spaceId = selectedSpaceId
-                                val walletId = selectedWalletId ?: 1L
-                                val payerId = selectedPayerId ?: 1L
-                                if (!name.isEmpty() && amt != null && amt > 0.0 && spaceId != null) {
+                                val walletId = selectedWalletId
+                                val payerId = selectedPayerId
+                                if (!name.isEmpty() && amt != null && amt > 0.0 && spaceId != null && payerId != null && walletId != null) {
+                                    val calcNextDueDate = java.util.Calendar.getInstance().apply {
+                                        timeInMillis = System.currentTimeMillis()
+                                        when (intervalType.lowercase()) {
+                                            "daily" -> add(java.util.Calendar.DAY_OF_YEAR, 1)
+                                            "weekly" -> add(java.util.Calendar.WEEK_OF_YEAR, 1)
+                                            "monthly" -> add(java.util.Calendar.MONTH, 1)
+                                            else -> add(java.util.Calendar.MONTH, 1)
+                                        }
+                                    }.timeInMillis
+
                                     viewModel.insertSubscription(
                                         spaceId = spaceId,
                                         paidById = payerId,
@@ -566,7 +615,7 @@ fun SubscriptionManagerScreen(
                                         category = selectedCategory,
                                         walletId = walletId,
                                         intervalType = intervalType,
-                                        nextDueDate = System.currentTimeMillis() - 1000L
+                                        nextDueDate = calcNextDueDate
                                     )
                                     name = ""
                                     amountStr = ""
@@ -638,7 +687,7 @@ fun SubscriptionManagerScreen(
                                     Text(text = "Next Run: $simpleDate", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                                 }
                             }
-                            IconButton(onClick = { viewModel.deleteSubscription(sub) }, modifier = Modifier.testTag("delete_sub_${sub.name}")) {
+                            IconButton(onClick = { subToDelete = sub }, modifier = Modifier.testTag("delete_sub_${sub.name}")) {
                                 Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete Sub", tint = MaterialTheme.colorScheme.error)
                             }
                         }
@@ -647,4 +696,22 @@ fun SubscriptionManagerScreen(
             }
         }
     }
+}
+
+fun getCategoryAndChildrenNames(categoryName: String, allCategories: List<Category>): Set<String> {
+    val result = mutableSetOf(categoryName)
+    val queue = mutableListOf(categoryName)
+    while (queue.isNotEmpty()) {
+        val currentName = queue.removeAt(0)
+        val currentCat = allCategories.find { it.name.equals(currentName, ignoreCase = true) }
+        if (currentCat != null) {
+            val children = allCategories.filter { it.parentId == currentCat.id }
+            for (child in children) {
+                if (result.add(child.name)) {
+                    queue.add(child.name)
+                }
+            }
+        }
+    }
+    return result
 }

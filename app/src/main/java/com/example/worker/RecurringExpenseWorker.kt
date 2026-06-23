@@ -4,10 +4,8 @@ import android.content.Context
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.example.data.*
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import java.util.Calendar
+import com.example.data.AppDatabase
+import com.example.data.ExpenseRepository
 
 class RecurringExpenseWorker(
     appContext: Context,
@@ -16,17 +14,17 @@ class RecurringExpenseWorker(
 
     override suspend fun doWork(): Result {
         Log.d("RecurringExpenseWorker", "Recurring Expense Worker running...")
-        
-        val database = AppDatabase.getDatabase(applicationContext, CoroutineScope(Dispatchers.IO))
+
+        val database = AppDatabase.getDatabase(applicationContext)
         val repository = ExpenseRepository(database.expenseDao())
 
-        try {
+        return try {
             val processed = repository.processOverdueSubscriptions()
             Log.d("RecurringExpenseWorker", "Successfully processed $processed recurring transactions!")
-            return Result.success()
+            Result.success()
         } catch (e: Exception) {
             Log.e("RecurringExpenseWorker", "Error processing recurring subscriptions", e)
-            return Result.failure()
+            Result.failure()
         }
     }
 }

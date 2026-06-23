@@ -103,7 +103,13 @@ object Routes {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ExpenseSplitterApp(viewModel: ExpenseViewModel, isDarkTheme: Boolean = true, onThemeToggle: () -> Unit = {}) {
+fun ExpenseSplitterApp(
+    viewModel: ExpenseViewModel,
+    isDarkTheme: Boolean = true,
+    onThemeToggle: () -> Unit = {},
+    fontScale: Float = 1.0f,
+    onFontScaleChange: (Float) -> Unit = {}
+) {
     val navController = rememberNavController()
     val activeUser by viewModel.currentUser.collectAsStateWithLifecycle()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -349,6 +355,8 @@ fun ExpenseSplitterApp(viewModel: ExpenseViewModel, isDarkTheme: Boolean = true,
             composable(Routes.PROFILE) {
                 ProfileScreen(
                     viewModel = viewModel,
+                    fontScale = fontScale,
+                    onFontScaleChange = onFontScaleChange,
                     onNavigateToCategoryManager = { navController.navigate(Routes.CATEGORY_MANAGER) },
                     onNavigateToBudgetManager = { navController.navigate(Routes.BUDGET_MANAGER) },
                     onNavigateToSubscriptionManager = { navController.navigate(Routes.RECURRING_MANAGER) },
@@ -1367,6 +1375,10 @@ fun SpaceDetailScreen(viewModel: ExpenseViewModel, onNavigateToAddExpense: () ->
     val balances by viewModel.activeSpaceBalances.collectAsStateWithLifecycle()
     val transactions by viewModel.activeSpaceSettlementTransactions.collectAsStateWithLifecycle()
 
+    androidx.activity.compose.BackHandler(enabled = space != null) {
+        viewModel.selectSpace(null)
+    }
+
     var selectedTabIndex by remember { mutableStateOf(0) }
     var showShareDialog by remember { mutableStateOf(false) }
     var showAddMemberDialog by remember { mutableStateOf(false) }
@@ -2282,6 +2294,10 @@ fun SpaceBalancesTab(
     val activeUser by viewModel.currentUser.collectAsStateWithLifecycle()
     val expenses by viewModel.activeSpaceExpenses.collectAsStateWithLifecycle()
     val wallets by viewModel.allWallets.collectAsStateWithLifecycle(emptyList())
+    val splits by viewModel.activeSpaceSplits.collectAsStateWithLifecycle()
+    var transactionToSettle by remember { mutableStateOf<ExpenseViewModel.SettlementTransaction?>(null) }
+    var selectedWalletForSettle by remember { mutableStateOf<Wallet?>(null) }
+    var walletDropdownExpanded by remember { mutableStateOf(false) }
 
     var userToRemove by remember { mutableStateOf<User?>(null) }
     var userToRename by remember { mutableStateOf<User?>(null) }
@@ -2360,6 +2376,93 @@ fun SpaceBalancesTab(
         )
     }
 
+    val activeTx = transactionToSettle
+    if (activeTx != null) {
+        AlertDialog(
+            onDismissRequest = { transactionToSettle = null },
+            title = { Text("Confirm Settlement", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Record payment of ₹${formatAmount(activeTx.amount)} from ${activeTx.debtor.name} to ${activeTx.creditor.name}?")
+                    
+                    if (wallets.isNotEmpty()) {
+                        val currentSel = selectedWalletForSettle ?: wallets.first()
+                        LaunchedEffect(wallets) {
+                            if (selectedWalletForSettle == null) {
+                                selectedWalletForSettle = wallets.first()
+                            }
+                        }
+                        
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            OutlinedButton(
+                                onClick = { walletDropdownExpanded = true },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Wallet: ${currentSel.name} (₹${formatAmount(currentSel.balance)})")
+                                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                                }
+                            }
+                            
+                            DropdownMenu(
+                                expanded = walletDropdownExpanded,
+                                onDismissRequest = { walletDropdownExpanded = false }
+                            ) {
+                                wallets.forEach { w ->
+                                    DropdownMenuItem(
+                                        text = { Text("${w.name} (₹${formatAmount(w.balance)})") },
+                                        onClick = {
+                                            selectedWalletForSettle = w
+                                            walletDropdownExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        Text(
+                            text = "No funding wallets configured. Please create a wallet under Profile -> Wallet Manager.",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val targetWallet = selectedWalletForSettle ?: wallets.firstOrNull()
+                        val sId = spaceId
+                        if (targetWallet != null && sId != null) {
+                            viewModel.settleDebt(
+                                spaceId = sId,
+                                debtorId = activeTx.debtor.id,
+                                creditorId = activeTx.creditor.id,
+                                amount = activeTx.amount,
+                                walletId = targetWallet.id,
+                                context = context
+                            )
+                        }
+                        transactionToSettle = null
+                    },
+                    enabled = wallets.isNotEmpty(),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Text("Confirm")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { transactionToSettle = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -2414,96 +2517,138 @@ fun SpaceBalancesTab(
                         lineHeight = 15.sp
                     )
                     Spacer(modifier = Modifier.height(14.dp))
-                    Row(
+                    Column(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         val activeSpaceState = space
                         val members = balances.map { it.user }
-                        Button(
-                            onClick = {
-                                val currentSpaceObj = activeSpaceState
-                                if (currentSpaceObj != null) {
-                                    val excelFile = com.example.utils.ExportEngine.exportSpaceToExcel(
-                                        context = context,
-                                        spaceName = currentSpaceObj.name,
-                                        expenses = expenses,
-                                        members = members,
-                                        wallets = wallets,
-                                        balances = balances,
-                                        settlements = transactions
-                                    )
-                                    if (excelFile != null) {
-                                        shareFile(context, excelFile, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                                    } else {
-                                        Toast.makeText(context, "Failed to compile Excel sheet", Toast.LENGTH_SHORT).show()
-                                    }
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1f).height(38.dp).testTag("export_space_excel")
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(Icons.Default.TableChart, contentDescription = "", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(13.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("XLSX", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            Button(
+                                onClick = {
+                                    val currentSpaceObj = activeSpaceState
+                                    if (currentSpaceObj != null) {
+                                        val excelFile = com.example.utils.ExportEngine.exportSpaceToExcel(
+                                            context = context,
+                                            spaceName = currentSpaceObj.name,
+                                            expenses = expenses,
+                                            members = members,
+                                            wallets = wallets,
+                                            balances = balances,
+                                            settlements = transactions
+                                        )
+                                        if (excelFile != null) {
+                                            shareFile(context, excelFile, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                                        } else {
+                                            Toast.makeText(context, "Failed to compile Excel sheet", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f).height(38.dp).testTag("export_space_excel")
+                            ) {
+                                Icon(Icons.Default.TableChart, contentDescription = "", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("XLSX", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            }
+
+                            Button(
+                                onClick = {
+                                    val currentSpaceObj = activeSpaceState
+                                    if (currentSpaceObj != null) {
+                                        val csvFile = com.example.utils.ExportEngine.exportSpaceToCSV(
+                                            context = context,
+                                            spaceName = currentSpaceObj.name,
+                                            expenses = expenses,
+                                            members = members,
+                                            wallets = wallets
+                                        )
+                                        if (csvFile != null) {
+                                            shareFile(context, csvFile, "text/csv")
+                                        } else {
+                                            Toast.makeText(context, "Failed to generate CSV", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                                modifier = Modifier.weight(1f).height(38.dp).testTag("export_space_csv")
+                            ) {
+                                Icon(Icons.Default.Description, contentDescription = "", tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("CSV", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            }
                         }
 
-                        Button(
-                            onClick = {
-                                val currentSpaceObj = activeSpaceState
-                                if (currentSpaceObj != null) {
-                                    val csvFile = com.example.utils.ExportEngine.exportSpaceToCSV(
-                                        context = context,
-                                        spaceName = currentSpaceObj.name,
-                                        expenses = expenses,
-                                        members = members,
-                                        wallets = wallets
-                                    )
-                                    if (csvFile != null) {
-                                        shareFile(context, csvFile, "text/csv")
-                                    } else {
-                                        Toast.makeText(context, "Failed to generate CSV", Toast.LENGTH_SHORT).show()
-                                    }
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                            shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                            modifier = Modifier.weight(1f).height(38.dp).testTag("export_space_csv")
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(Icons.Default.Description, contentDescription = "", tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(13.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("CSV", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                        }
+                            Button(
+                                onClick = {
+                                    val currentSpaceObj = activeSpaceState
+                                    if (currentSpaceObj != null) {
+                                        val pdfFile = com.example.utils.ExportEngine.generateSpaceReportPDF(
+                                            context = context,
+                                            spaceName = currentSpaceObj.name,
+                                            expenses = expenses,
+                                            members = members,
+                                            wallets = wallets,
+                                            balances = balances,
+                                            settlements = transactions,
+                                            splits = splits
+                                        )
+                                        if (pdfFile != null) {
+                                            shareFile(context, pdfFile, "application/pdf")
+                                        } else {
+                                            Toast.makeText(context, "Failed to generate PDF Report", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f).height(38.dp).testTag("export_space_pdf")
+                            ) {
+                                Icon(Icons.Default.PictureAsPdf, contentDescription = "", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("PDF Report", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            }
 
-                        Button(
-                            onClick = {
-                                val currentSpaceObj = activeSpaceState
-                                if (currentSpaceObj != null) {
-                                    val pdfFile = com.example.utils.ExportEngine.generateSpaceReportPDF(
-                                        context = context,
-                                        spaceName = currentSpaceObj.name,
-                                        expenses = expenses,
-                                        members = members,
-                                        wallets = wallets,
-                                        balances = balances,
-                                        settlements = transactions
-                                    )
-                                    if (pdfFile != null) {
-                                        shareFile(context, pdfFile, "application/pdf")
-                                    } else {
-                                        Toast.makeText(context, "Failed to generate PDF Report", Toast.LENGTH_SHORT).show()
+                            Button(
+                                onClick = {
+                                    val currentSpaceObj = activeSpaceState
+                                    if (currentSpaceObj != null) {
+                                        val zipFile = com.example.utils.ExportEngine.exportSpacePackageZip(
+                                            context = context,
+                                            spaceName = currentSpaceObj.name,
+                                            expenses = expenses,
+                                            members = members,
+                                            wallets = wallets,
+                                            balances = balances,
+                                            settlements = transactions,
+                                            splits = splits
+                                        )
+                                        if (zipFile != null) {
+                                            shareFile(context, zipFile, "application/zip")
+                                        } else {
+                                            Toast.makeText(context, "Failed to generate ZIP Package", Toast.LENGTH_SHORT).show()
+                                        }
                                     }
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1.2f).height(38.dp).testTag("export_space_pdf")
-                        ) {
-                            Icon(Icons.Default.PictureAsPdf, contentDescription = "", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(13.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("PDF Report", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f).height(38.dp).testTag("export_space_zip")
+                            ) {
+                                Icon(Icons.Default.Archive, contentDescription = "", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("ZIP Package", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            }
                         }
                     }
                 }
@@ -2666,8 +2811,11 @@ fun SpaceBalancesTab(
                                         )
                                         Button(
                                             onClick = {
-                                                spaceId?.let { sId ->
-                                                    viewModel.settleDebt(sId, tx.debtor.id, tx.creditor.id, tx.amount)
+                                                if (wallets.isEmpty()) {
+                                                    Toast.makeText(context, "Please create a funding wallet first under Profile -> Wallet Manager.", Toast.LENGTH_LONG).show()
+                                                } else {
+                                                    selectedWalletForSettle = wallets.first()
+                                                    transactionToSettle = tx
                                                 }
                                             },
                                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
@@ -2969,7 +3117,7 @@ fun AddExpenseScreen(viewModel: ExpenseViewModel, onSaved: () -> Unit) {
             selectedSpace = spaces.find { it.id == expense.spaceId }
             selectedPayerId = expense.paidById
             selectedTimestamp = expense.date
-            selectedWalletId = expense.walletId
+            selectedWalletId = expense.walletId ?: wallets.firstOrNull()?.id ?: 1L
             attachedUris.clear()
             expense.attachmentUris?.let { attachedUris.addAll(it) }
 
@@ -4185,6 +4333,8 @@ fun AddExpenseScreen(viewModel: ExpenseViewModel, onSaved: () -> Unit) {
 @Composable
 fun ProfileScreen(
     viewModel: ExpenseViewModel,
+    fontScale: Float,
+    onFontScaleChange: (Float) -> Unit,
     onNavigateToCategoryManager: () -> Unit,
     onNavigateToBudgetManager: () -> Unit,
     onNavigateToSubscriptionManager: () -> Unit,
@@ -4345,6 +4495,87 @@ fun ProfileScreen(
                             text = activeUser?.email ?: "",
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                             fontSize = 13.sp
+                        )
+                    }
+                }
+            }
+        }
+
+        // Display Sizing & Font Accessibility Settings Card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.TextFormat,
+                            contentDescription = "Font Scaling",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Text Size Settings",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Adjust text size multiplier across the entire application interface.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp,
+                        lineHeight = 15.sp
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "A-",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Slider(
+                            value = fontScale,
+                            onValueChange = onFontScaleChange,
+                            valueRange = 0.8f..1.5f,
+                            steps = 6, // 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5
+                            modifier = Modifier.weight(1f).testTag("font_scale_slider"),
+                            colors = SliderDefaults.colors(
+                                thumbColor = MaterialTheme.colorScheme.primary,
+                                activeTrackColor = MaterialTheme.colorScheme.primary,
+                                inactiveTrackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                            )
+                        )
+                        Text(
+                            text = "A+",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "${(fontScale * 100).toInt()}%",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.width(42.dp),
+                            textAlign = TextAlign.End
                         )
                     }
                 }
@@ -4806,6 +5037,38 @@ fun generateQRCodeBitmap(content: String, size: Int = 512): Bitmap? {
     }
 }
 
+fun saveBitmapToGallery(context: Context, bitmap: Bitmap, spaceName: String): Boolean {
+    val filename = "TravelSplit_Space_${spaceName.replace(" ", "_")}_${System.currentTimeMillis()}.png"
+    val contentValues = android.content.ContentValues().apply {
+        put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, filename)
+        put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/png")
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES + "/TravelSplit")
+            put(android.provider.MediaStore.MediaColumns.IS_PENDING, 1)
+        }
+    }
+
+    val resolver = context.contentResolver
+    val imageUri = resolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues) ?: return false
+
+    return try {
+        resolver.openOutputStream(imageUri).use { outputStream ->
+            if (outputStream == null) return false
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+        }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            contentValues.clear()
+            contentValues.put(android.provider.MediaStore.MediaColumns.IS_PENDING, 0)
+            resolver.update(imageUri, contentValues, null, null)
+        }
+        true
+    } catch (e: Exception) {
+        e.printStackTrace()
+        resolver.delete(imageUri, null, null)
+        false
+    }
+}
+
 class QRCodeAnalyzer(
     private val onQRCodeDetected: (String) -> Unit
 ) : ImageAnalysis.Analyzer {
@@ -4943,7 +5206,9 @@ fun ShareSpaceDialog(
     onDismiss: () -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
     var qrBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var spaceName by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(true) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
@@ -4951,6 +5216,7 @@ fun ShareSpaceDialog(
         try {
             val payload = viewModel.getSharePayloadForSpace(spaceId)
             if (payload != null) {
+                spaceName = payload.spaceName
                 val jsonStr = sharingJson.encodeToString(SharedSpacePayload.serializer(), payload)
                 val compressedStr = compressString(jsonStr)
                 val bitmap = generateQRCodeBitmap(compressedStr)
@@ -5021,12 +5287,42 @@ fun ShareSpaceDialog(
                     }
                 }
 
-                Button(
-                    onClick = onDismiss,
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                    modifier = Modifier.fillMaxWidth()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(text = "Close", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+                    Button(
+                        onClick = {
+                            val bitmap = qrBitmap
+                            if (bitmap != null) {
+                                val success = saveBitmapToGallery(context, bitmap, spaceName)
+                                if (success) {
+                                    Toast.makeText(context, "QR Code downloaded to Pictures/TravelSplit", Toast.LENGTH_LONG).show()
+                                } else {
+                                    Toast.makeText(context, "Download failed", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        enabled = qrBitmap != null,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Download,
+                            contentDescription = "Download QR",
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(text = "Download", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+
+                    Button(
+                        onClick = onDismiss,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(text = "Close", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
                 }
             }
         }

@@ -40,8 +40,10 @@ fun CategoryManagerScreen(
     var selectedParentId by remember { mutableStateOf<Long?>(null) }
     var selectedIconName by remember { mutableStateOf("category") }
     var parentDropdownExpanded by remember { mutableStateOf(false) }
+    var categoryToDelete by remember { mutableStateOf<Category?>(null) }
 
     val focusManager = LocalFocusManager.current
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     // Available Icons for custom picker
     val iconOptions = listOf(
@@ -80,6 +82,28 @@ fun CategoryManagerScreen(
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { innerPadding ->
+        if (categoryToDelete != null) {
+            AlertDialog(
+                onDismissRequest = { categoryToDelete = null },
+                title = { Text("Delete Category", fontWeight = FontWeight.Bold) },
+                text = { Text("Are you sure you want to delete the category \"${categoryToDelete?.name}\"? All its subcategories will also be deleted. This action cannot be undone.") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            categoryToDelete?.let { viewModel.deleteCategory(it) }
+                            categoryToDelete = null
+                        }
+                    ) {
+                        Text("Delete", color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { categoryToDelete = null }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -161,7 +185,8 @@ fun CategoryManagerScreen(
 
                                 ExposedDropdownMenu(
                                     expanded = parentDropdownExpanded,
-                                    onDismissRequest = { parentDropdownExpanded = false }
+                                    onDismissRequest = { parentDropdownExpanded = false },
+                                    modifier = Modifier.heightIn(max = 240.dp)
                                 ) {
                                     DropdownMenuItem(
                                         text = { Text("None (Make Top-Level Parent)") },
@@ -236,7 +261,8 @@ fun CategoryManagerScreen(
                                     viewModel.insertCategory(
                                         name = categoryName.trim(),
                                         iconName = selectedIconName,
-                                        parentId = selectedParentId
+                                        parentId = selectedParentId,
+                                        context = context
                                     )
                                     categoryName = ""
                                     selectedParentId = null
@@ -294,7 +320,7 @@ fun CategoryManagerScreen(
                         CategoryNodeItem(
                             category = parent,
                             isChild = false,
-                            onDelete = { viewModel.deleteCategory(parent) }
+                            onDelete = { categoryToDelete = parent }
                         )
                     }
 
@@ -303,7 +329,7 @@ fun CategoryManagerScreen(
                         CategoryNodeItem(
                             category = child,
                             isChild = true,
-                            onDelete = { viewModel.deleteCategory(child) }
+                            onDelete = { categoryToDelete = child }
                         )
                     }
                 }
@@ -312,7 +338,7 @@ fun CategoryManagerScreen(
                     item {
                         Text(
                             text = "Orphaned nested items",
-                            color = Color.Yellow,
+                            color = MaterialTheme.colorScheme.error,
                             fontSize = 11.sp,
                             modifier = Modifier.padding(vertical = 4.dp)
                         )
@@ -321,7 +347,7 @@ fun CategoryManagerScreen(
                         CategoryNodeItem(
                             category = child,
                             isChild = true,
-                            onDelete = { viewModel.deleteCategory(child) }
+                            onDelete = { categoryToDelete = child }
                         )
                     }
                 }
@@ -423,7 +449,7 @@ fun CategoryNodeItem(
             Icon(
                 imageVector = Icons.Default.Delete,
                 contentDescription = "Delete",
-                tint = Color.Red.copy(alpha = 0.7f),
+                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
                 modifier = Modifier.size(18.dp)
             )
         }

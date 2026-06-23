@@ -9,6 +9,70 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import android.content.Context
+import android.widget.Toast
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+
+private fun isValidNumber(value: Double): Boolean = !value.isNaN() && !value.isInfinite()
+
+fun formatAmount(amount: Double): String {
+    if (!isValidNumber(amount)) return "₹0.00"
+    val isNegative = amount < 0.0
+    val absAmount = if (isNegative) -amount else amount
+    val s = String.format(java.util.Locale.US, "%.2f", absAmount)
+    val parts = s.split(".")
+    val intPart = parts[0]
+    val decPart = parts[1]
+    
+    val len = intPart.length
+    val formatted = if (len <= 3) {
+        "${intPart}.${decPart}"
+    } else {
+        val lastThree = intPart.substring(len - 3)
+        val remaining = intPart.substring(0, len - 3)
+        val sb = StringBuilder()
+        val revRemaining = remaining.reversed()
+        revRemaining.forEachIndexed { index, c ->
+            if (index > 0 && index % 2 == 0) {
+                sb.append(",")
+            }
+            sb.append(c)
+        }
+        "${sb.reverse()},$lastThree.$decPart"
+    }
+    return if (isNegative) "-$formatted" else formatted
+}
+
+fun formatAmount(amount: Long): String {
+    if (!isValidNumber(amount.toDouble())) return "₹0.00"
+    val isNegative = amount < 0L
+    val absAmount = if (isNegative) -amount else amount
+    val intPart = absAmount.toString()
+    val decPart = "00"
+    
+    val len = intPart.length
+    val formatted = if (len <= 3) {
+        "${intPart}.${decPart}"
+    } else {
+        val lastThree = intPart.substring(len - 3)
+        val remaining = intPart.substring(0, len - 3)
+        val sb = java.lang.StringBuilder()
+        val revRemaining = remaining.reversed()
+        revRemaining.forEachIndexed { index, c ->
+            if (index > 0 && index % 2 == 0) {
+                sb.append(",")
+            }
+            sb.append(c)
+        }
+        "${sb.reverse()},$lastThree.$decPart"
+    }
+    return if (isNegative) "-$formatted" else formatted
+}
+
+fun formatAmount(amount: Int): String {
+    return formatAmount(amount.toLong())
+}
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() {
@@ -18,11 +82,7 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
     val currentUserId = _currentUserId.asStateFlow()
 
     val currentUser: StateFlow<User?> = combine(repository.allUsers, _currentUserId) { users, id ->
-        val matched = users.find { it.id == id } ?: users.firstOrNull()
-        if (matched != null && _currentUserId.value != matched.id) {
-            _currentUserId.value = matched.id
-        }
-        matched
+        users.find { it.id == id } ?: users.firstOrNull()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     private val _isLoaded = MutableStateFlow(false)
@@ -187,7 +247,6 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), OverallBalanceSummary(0.0, 0.0, 0.0))
 
 
-
     // --- Actions / Mutators ---
 
     fun selectSpace(spaceId: Long?) {
@@ -244,7 +303,12 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
 
     fun createSpace(name: String, description: String, memberIds: List<Long>) {
         viewModelScope.launch {
-            repository.addSpaceWithMembers(name, description, memberIds)
+            val allIds = memberIds.toMutableList()
+            val currentId = _currentUserId.value
+            if (!allIds.contains(currentId)) {
+                allIds.add(currentId)
+            }
+            repository.addSpaceWithMembers(name, description, allIds)
         }
     }
 
@@ -269,6 +333,16 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
         }
     }
 
+    fun updateSpaceDetails(spaceId: Long, name: String, description: String) {
+        viewModelScope.launch {
+            val currentSpace = repository.getSpaceById(spaceId).first()
+            if (currentSpace != null) {
+                repository.insertSpace(currentSpace.copy(name = name, description = description))
+            }
+        }
+    }
+
+
     fun addMemberToSpace(spaceId: Long, userId: Long) {
         viewModelScope.launch {
             repository.addMemberToSpace(spaceId, userId)
@@ -284,6 +358,10 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
 
     fun removeUserFromSpaceAndRecalculate(spaceId: Long, userId: Long) {
         viewModelScope.launch {
+            if (userId == _currentUserId.value) {
+                // Do not allow the current active user to be removed from the space!
+                return@launch
+            }
             repository.removeUserFromSpaceAndRecalculate(spaceId, userId)
         }
     }
@@ -300,13 +378,18 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
         category: String,
         participantIds: List<Long>,
         date: Long = System.currentTimeMillis(),
-        walletId: Long = 1L,
+        walletId: Long? = null,
         attachmentUris: List<String> = emptyList(),
         expenseId: Long = 0L
     ) {
         viewModelScope.launch {
             if (participantIds.isEmpty()) return@launch
-            val perPerson = amount / participantIds.size
+            
+            val size = participantIds.size
+            val perPerson = Math.round((amount / size) * 100.0) / 100.0
+            val totalAllocated = perPerson * size
+            val diff = Math.round((amount - totalAllocated) * 100.0) / 100.0
+            
             val expense = Expense(
                 id = expenseId,
                 spaceId = spaceId,
@@ -318,11 +401,12 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
                 walletId = walletId,
                 attachmentUris = attachmentUris
             )
-            val splits = participantIds.map { userId ->
+            val splits = participantIds.mapIndexed { index, userId ->
+                val owe = if (index == size - 1) Math.round((perPerson + diff) * 100.0) / 100.0 else perPerson
                 ExpenseSplit(
                     expenseId = expenseId,
                     userId = userId,
-                    amountOwed = perPerson
+                    amountOwed = owe
                 )
             }
             if (expenseId > 0L) {
@@ -341,11 +425,14 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
         category: String,
         splitsMap: Map<Long, Double>,
         date: Long = System.currentTimeMillis(),
-        walletId: Long = 1L,
+        walletId: Long? = null,
         attachmentUris: List<String> = emptyList(),
         expenseId: Long = 0L
     ) {
         viewModelScope.launch {
+            val totalAllocated = splitsMap.values.sum()
+            val diff = Math.round((amount - totalAllocated) * 100.0) / 100.0
+            
             val expense = Expense(
                 id = expenseId,
                 spaceId = spaceId,
@@ -363,7 +450,17 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
                     userId = userId,
                     amountOwed = amountOwed
                 )
+            }.toMutableList()
+            
+            if (Math.abs(diff) > 0.0) {
+                // Adjust the last split
+                val lastIdx = splits.size - 1
+                if (lastIdx >= 0) {
+                    val lastSplit = splits[lastIdx]
+                    splits[lastIdx] = lastSplit.copy(amountOwed = Math.round((lastSplit.amountOwed + diff) * 100.0) / 100.0)
+                }
             }
+            
             if (expenseId > 0L) {
                 repository.updateExpenseWithSplits(expense, splits)
             } else {
@@ -380,11 +477,14 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
         category: String,
         date: Long,
         splits: List<ExpenseSplit>,
-        walletId: Long = 1L,
+        walletId: Long? = null,
         attachmentUris: List<String> = emptyList(),
         expenseId: Long = 0L
     ) {
         viewModelScope.launch {
+            val totalAllocated = splits.sumOf { it.amountOwed }
+            val diff = Math.round((amount - totalAllocated) * 100.0) / 100.0
+            
             val expense = Expense(
                 id = expenseId,
                 spaceId = spaceId,
@@ -396,7 +496,10 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
                 walletId = walletId,
                 attachmentUris = attachmentUris
             )
-            val targetSplits = splits.map { it.copy(expenseId = expenseId) }
+            val targetSplits = splits.mapIndexed { index, split ->
+                val owe = if (index == splits.size - 1) Math.round((split.amountOwed + diff) * 100.0) / 100.0 else split.amountOwed
+                split.copy(expenseId = expenseId, amountOwed = owe)
+            }
             if (expenseId > 0L) {
                 repository.updateExpenseWithSplits(expense, targetSplits)
             } else {
@@ -412,22 +515,28 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
         }
     }
 
-    fun updateWallet(wallet: Wallet) {
-        viewModelScope.launch {
-            repository.insertWallet(wallet)
-        }
-    }
-
     fun deleteWallet(wallet: Wallet) {
         viewModelScope.launch {
             repository.deleteWallet(wallet)
         }
     }
 
-    // --- Categories Functions ---
-    fun insertCategory(name: String, iconName: String, parentId: Long?) {
+    fun updateWallet(id: Long, name: String, type: String, balance: Double) {
         viewModelScope.launch {
-            repository.insertCategory(Category(name = name, iconName = iconName, parentId = parentId))
+            repository.updateWallet(id, name, type, balance)
+        }
+    }
+
+    // --- Categories Functions ---
+    fun insertCategory(name: String, iconName: String, parentId: Long?, context: android.content.Context) {
+        viewModelScope.launch {
+            val categories = repository.allCategories.first()
+            val exists = categories.any { it.name.equals(name, ignoreCase = true) }
+            if (exists) {
+                android.widget.Toast.makeText(context, "Category '$name' already exists", android.widget.Toast.LENGTH_SHORT).show()
+            } else {
+                repository.insertCategory(Category(name = name, iconName = iconName.lowercase(), parentId = parentId))
+            }
         }
     }
 
@@ -464,7 +573,7 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
         name: String,
         amount: Double,
         category: String,
-        walletId: Long,
+        walletId: Long?,
         intervalType: String,
         nextDueDate: Long
     ) {
@@ -490,22 +599,18 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
         }
     }
 
-    fun settleDebt(spaceId: Long, debtorId: Long, creditorId: Long, amount: Double) {
+    fun settleDebt(spaceId: Long, debtorId: Long, creditorId: Long, amount: Double, walletId: Long, context: Context) {
         viewModelScope.launch {
-            // Register a settlement expense: Debtor pays Creditor the amount
-            // Payer: debtorId
-            // Beneficiary (who owes debtor): creditorId
-            val expense = Expense(
-                spaceId = spaceId,
-                paidById = debtorId,
-                description = "Settle Up (Payment to Creditor)",
-                amount = amount,
-                category = "Settlement"
-            )
-            val splits = listOf(
-                ExpenseSplit(expenseId = 0, userId = creditorId, amountOwed = amount)
-            )
-            repository.addExpenseWithSplits(expense, splits)
+            try {
+                repository.settleDebtTransactionally(spaceId, debtorId, creditorId, amount, walletId)
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Debt settled successfully!", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: IllegalStateException) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, e.message ?: "Failed to settle debt", Toast.LENGTH_LONG).show()
+                }
+            }
         }
     }
 
@@ -518,18 +623,12 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
     fun deleteSpace(space: Space) {
         viewModelScope.launch {
             repository.deleteSpace(space)
-            if (_activeSpaceId.value == space.id) {
-                _activeSpaceId.value = null
-            }
         }
     }
 
-    // --- Settling up debts algorithm ---
     private fun resolveDebts(balances: List<MemberBalance>): List<SettlementTransaction> {
         val transactions = mutableListOf<SettlementTransaction>()
-        
-        // Separate members into positive balances (creditors) and negative balances (debtors)
-        // We use a threshold of 0.01 to avoid precision issues with doubles
+
         val creditors = balances.filter { it.netBalance > 0.01 }
             .map { it.user to it.netBalance }
             .toMutableList()
@@ -554,10 +653,10 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
             creditors[cIndex] = creditor to (creditAmount - settledAmount)
             debtors[dIndex] = debtor to (debtAmount - settledAmount)
 
-            if (creditors[cIndex].second < 0.01) {
+            if (creditors[cIndex].second <= 0.01) {
                 cIndex++
             }
-            if (debtors[dIndex].second < 0.01) {
+            if (debtors[dIndex].second <= 0.01) {
                 dIndex++
             }
         }
@@ -574,7 +673,8 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
 
         val sharedUsers = members.map { SharedUser(it.name, it.email, it.avatarUrl) }
         
-        val sharedExpenses = expenses.map { expense ->
+        // Limit to 50 expenses to keep QR size under 3KB
+        val sharedExpenses = expenses.take(50).map { expense ->
             val paidByMember = members.find { it.id == expense.paidById }
             val paidEmail = paidByMember?.email ?: "unknown@example.com"
             
@@ -603,7 +703,8 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
             spaceDescription = space.description,
             spaceCreatedAt = space.createdAt,
             members = sharedUsers,
-            expenses = sharedExpenses
+            expenses = sharedExpenses,
+            isTruncated = expenses.size > 50
         )
     }
 
@@ -638,15 +739,13 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
                 val existingExpenses = repository.getExpensesForSpace(finalSpaceId).first()
 
                 payload.expenses.forEach { sharedExpense ->
-                    val existingExp = existingExpenses.find { 
+                    val alreadyImported = existingExpenses.any { 
                         it.description == sharedExpense.description && 
                         Math.abs(it.amount - sharedExpense.amount) < 0.01 && 
                         it.date == sharedExpense.date 
                     }
                     
-                    if (existingExp != null) {
-                        repository.deleteExpense(existingExp.id)
-                    }
+                    if (alreadyImported) return@forEach
 
                     val paidByLocalUserId = emailToLocalUserId[sharedExpense.paidByUserEmail.lowercase()] 
                         ?: _currentUserId.value
@@ -683,6 +782,12 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
             }
         }
     }
+
+    fun clearAllData() {
+        viewModelScope.launch {
+            repository.clearAllData()
+        }
+    }
 }
 
 @Serializable
@@ -691,7 +796,8 @@ data class SharedSpacePayload(
     val spaceDescription: String,
     val spaceCreatedAt: Long,
     val members: List<SharedUser>,
-    val expenses: List<SharedExpense>
+    val expenses: List<SharedExpense>,
+    val isTruncated: Boolean = false
 )
 
 @Serializable
@@ -717,21 +823,10 @@ data class SharedSplit(
     val amountOwed: Double
 )
 
-// Helper extenson on Room Dao to query splits of a given user (added inside repo for convenience)
-fun ExpenseRepository.getSplitsForUser(userId: Long): Flow<List<ExpenseSplit>> {
-    // We can simulate or return a flow from allExpenses + checking splits in DB...
-    // Let's keep it extremely clean. Since splits are in rooms and we have DAO we can write a function if needed.
-    // For general simplicity, we can also query all splits from database if we want or define inside ExpenseDao.
-    // Let's implement active user's overview parameters nicely!
-    return kotlinx.coroutines.flow.flowOf(emptyList())
-}
-
-
 data class AppInitState(
     val isLoaded: Boolean = false,
     val usersList: List<User> = emptyList()
 )
-
 
 class ExpenseViewModelFactory(private val repository: ExpenseRepository) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
