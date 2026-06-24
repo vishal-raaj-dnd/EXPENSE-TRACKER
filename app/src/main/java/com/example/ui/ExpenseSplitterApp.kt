@@ -1521,6 +1521,32 @@ fun ExpenseRow(
     onDelete: () -> Unit,
     onEdit: () -> Unit
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Delete Expense?") },
+            text = { Text("Are you sure you want to delete this expense? This action cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDelete()
+                        showDeleteConfirm = false
+                    }
+                ) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     val payer = members.find { it.id == expense.paidById }
     val formattedDate = remember(expense.date) {
         val sdf = SimpleDateFormat("MMM d, yyyy • hh:mm a", Locale.US)
@@ -1615,40 +1641,61 @@ fun ExpenseRow(
                         modifier = Modifier.padding(horizontal = 4.dp)
                     )
                     Spacer(modifier = Modifier.width(16.dp))
-                    if (expense.category != "Settlement") {
+                    Box(modifier = Modifier.wrapContentSize(Alignment.TopEnd)) {
                         IconButton(
-                            onClick = onEdit,
+                            onClick = { menuExpanded = true },
                             modifier = Modifier
                                 .size(32.dp)
                                 .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.05f))
-                                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), CircleShape)
-                                .testTag("edit_expense_${expense.id}")
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
+                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), CircleShape)
+                                .testTag("expense_menu_${expense.id}")
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Edit,
-                                contentDescription = "Edit Expense",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(15.dp)
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "Expense Options",
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.width(24.dp))
-                    }
-                    IconButton(
-                        onClick = onDelete,
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(Color.Red.copy(alpha = 0.05f))
-                            .border(1.dp, Color.Red.copy(alpha = 0.15f), CircleShape)
-                            .testTag("delete_expense_${expense.id}")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Delete Expense",
-                            tint = Color.Red.copy(alpha = 0.8f),
-                            modifier = Modifier.size(15.dp)
-                        )
+                        DropdownMenu(
+                            expanded = menuExpanded,
+                            onDismissRequest = { menuExpanded = false }
+                        ) {
+                            if (expense.category != "Settlement") {
+                                DropdownMenuItem(
+                                    text = { Text("Edit") },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Edit,
+                                            contentDescription = "Edit Option",
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    },
+                                    onClick = {
+                                        menuExpanded = false
+                                        onEdit()
+                                    },
+                                    modifier = Modifier.testTag("edit_expense_${expense.id}")
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = { Text("Delete", color = Color.Red) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Delete Option",
+                                        tint = Color.Red,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                },
+                                onClick = {
+                                    menuExpanded = false
+                                    showDeleteConfirm = true
+                                },
+                                modifier = Modifier.testTag("delete_expense_${expense.id}")
+                            )
+                        }
                     }
                 }
             }
@@ -2483,6 +2530,15 @@ fun AddExpenseScreen(viewModel: ExpenseViewModel, onSaved: () -> Unit) {
 
     var description by remember { mutableStateOf("") }
     var amountText by remember { mutableStateOf("") }
+    var showCalculatorDialog by remember { mutableStateOf(false) }
+
+    if (showCalculatorDialog) {
+        CalculatorDialog(
+            initialValue = amountText,
+            onDismiss = { showCalculatorDialog = false },
+            onConfirm = { amountText = it }
+        )
+    }
 
     val pendingAmount by viewModel.pendingExpenseAmount.collectAsStateWithLifecycle()
     LaunchedEffect(pendingAmount) {
@@ -2864,6 +2920,15 @@ fun AddExpenseScreen(viewModel: ExpenseViewModel, onSaved: () -> Unit) {
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
                     )
+                },
+                trailingIcon = {
+                    IconButton(onClick = { showCalculatorDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Calculate,
+                            contentDescription = "Open Calculator",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             )
         }
@@ -5335,6 +5400,278 @@ object OnboardingIllustrations {
             }
         }
     }
+}
+
+fun evaluateExpression(expr: String): Double {
+    return ExpressionParser(expr).parse()
+}
+
+class ExpressionParser(private val expr: String) {
+    private var pos = 0
+    private val sanitized: String
+
+    init {
+        var s = expr.replace(" ", "")
+        s = s.replace("×", "*")
+        s = s.replace("÷", "/")
+        sanitized = s
+    }
+
+    private fun peek(): Char? {
+        return if (pos < sanitized.length) sanitized[pos] else null
+    }
+
+    private fun consume(char: Char): Boolean {
+        val p = peek()
+        if (p != null && p == char) {
+            pos++
+            return true
+        }
+        return false
+    }
+
+    fun parse(): Double {
+        try {
+            val result = parseExpression()
+            if (pos >= sanitized.length) {
+                return result
+            }
+            throw IllegalArgumentException("Unexpected character at $pos")
+        } catch (e: Exception) {
+            return Double.NaN
+        }
+    }
+
+    private fun parseExpression(): Double {
+        var left = parseTerm()
+        while (true) {
+            if (consume('+')) {
+                left += parseTerm()
+            } else if (consume('-')) {
+                left -= parseTerm()
+            } else {
+                return left
+            }
+        }
+    }
+
+    private fun parseTerm(): Double {
+        var left = parseFactor()
+        while (true) {
+            if (consume('*')) {
+                left *= parseFactor()
+            } else if (consume('/')) {
+                val right = parseFactor()
+                if (right == 0.0) {
+                    throw ArithmeticException("Division by zero")
+                }
+                left /= right
+            } else {
+                return left
+            }
+        }
+    }
+
+    private fun parseFactor(): Double {
+        if (consume('(')) {
+            val result = parseExpression()
+            if (!consume(')')) {
+                throw IllegalArgumentException("Mismatched parentheses")
+            }
+            return result
+        }
+        var sign = 1.0
+        if (consume('-')) {
+            sign = -1.0
+        } else {
+            consume('+')
+        }
+        val start = pos
+        while (pos < sanitized.length && (sanitized[pos].isDigit() || sanitized[pos] == '.')) {
+            pos++
+        }
+        if (start == pos) {
+            throw IllegalArgumentException("Unexpected character at $pos")
+        }
+        val token = sanitized.substring(start, pos)
+        val value = token.toDoubleOrNull() ?: throw IllegalArgumentException("Invalid number: $token")
+        return sign * value
+    }
+}
+
+@Composable
+fun CalculatorDialog(
+    initialValue: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var expression by remember { mutableStateOf(initialValue) }
+
+    val resultText = remember(expression) {
+        val parser = ExpressionParser(expression)
+        val result = parser.parse()
+        if (!result.isNaN() && !result.isInfinite()) {
+            val formatted = String.format(Locale.US, "%.2f", result)
+            if (formatted.endsWith(".00")) {
+                formatted.substring(0, formatted.length - 3)
+            } else {
+                formatted
+            }
+        } else {
+            "Error"
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text("Calculator", style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = expression.ifEmpty { "0" },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyLarge,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "= $resultText",
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        text = {
+            val buttons = listOf(
+                listOf("7", "8", "9", "÷"),
+                listOf("4", "5", "6", "×"),
+                listOf("1", "2", "3", "-"),
+                listOf("C", "0", ".", "+")
+            )
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                buttons.forEach { row ->
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        row.forEach { char ->
+                            Button(
+                                onClick = {
+                                    when (char) {
+                                        "C" -> expression = ""
+                                        "×" -> expression += "*"
+                                        "÷" -> expression += "/"
+                                        else -> expression += char
+                                    }
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (char in listOf("+", "-", "×", "÷")) {
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    } else if (char == "C") {
+                                        MaterialTheme.colorScheme.errorContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.surfaceVariant
+                                    },
+                                    contentColor = if (char in listOf("+", "-", "×", "÷")) {
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    } else if (char == "C") {
+                                        MaterialTheme.colorScheme.onErrorContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                            ) {
+                                Text(char, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            }
+                        }
+                    }
+                }
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Button(
+                        onClick = {
+                            if (expression.isNotEmpty()) {
+                                expression = expression.dropLast(1)
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                    ) {
+                        Text("⌫", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    }
+
+                    Button(
+                        onClick = {
+                            val parser = ExpressionParser(expression)
+                            val res = parser.parse()
+                            if (!res.isNaN() && !res.isInfinite()) {
+                                val formatted = String.format(Locale.US, "%.2f", res)
+                                expression = if (formatted.endsWith(".00")) {
+                                    formatted.substring(0, formatted.length - 3)
+                                } else {
+                                    formatted
+                                }
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                    ) {
+                        Text("=", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val parser = ExpressionParser(expression)
+                    val res = parser.parse()
+                    if (!res.isNaN() && !res.isInfinite()) {
+                        val formatted = String.format(Locale.US, "%.2f", res)
+                        onConfirm(formatted)
+                    } else {
+                        onConfirm(expression)
+                    }
+                    onDismiss()
+                }
+            ) {
+                Text("Confirm")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 
