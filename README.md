@@ -1,4 +1,4 @@
-<div align="center">
+﻿<div align="center">
 
 <!-- Animated Banner -->
 <img width="100%" src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=6,11,20&height=200&section=header&text=Splitify&fontSize=90&fontColor=fff&animation=twinkling&fontAlignY=35&desc=Professional%20Expense%20Splitter%20%26%20Financial%20Planner&descAlignY=58&descSize=20" />
@@ -43,21 +43,21 @@
 
 <br/>
 
-## 🌟 What is Splitify?
+## ðŸŒŸ What is Splitify?
 
-> **Splitify** is a full-featured, production-grade Android expense management application. Whether you're splitting a group trip, tracking monthly budgets, managing recurring bills, or calculating EMIs — Splitify handles it all in a sleek, professional interface built entirely with **Kotlin** and **Jetpack Compose**.
+> **Splitify** is a full-featured, production-grade Android expense management application. Whether you're splitting a group trip, tracking monthly budgets, managing recurring bills, or calculating EMIs â€” Splitify handles it all in a sleek, professional interface built entirely with **Kotlin** and **Jetpack Compose**.
 
 <div align="center">
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                                                                     │
-│   💰 Split Bills   📊 Track Budgets   🔄 Recurring Bills           │
-│   📎 Attach Receipts   📤 Export Data   🧮 Financial Calculators   │
-│                                                                     │
-│              All in one beautiful Android app ✨                    │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚                                                                     â”‚
+â”‚   ðŸ’° Split Bills   ðŸ“Š Track Budgets   ðŸ”„ Recurring Bills           â”‚
+â”‚   ðŸ“Ž Attach Receipts   ðŸ“¤ Export Data   ðŸ§® Financial Calculators   â”‚
+â”‚                                                                     â”‚
+â”‚              All in one beautiful Android app âœ¨                    â”‚
+â”‚                                                                     â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 ```
 
 </div>
@@ -67,71 +67,71 @@
 <!-- Divider -->
 <img src="https://user-images.githubusercontent.com/73097560/115834477-dbab4500-a447-11eb-908a-139a6edaec5c.gif" width="100%">
 
-## ✨ Feature Showcase
+## âœ¨ Feature Showcase
 
 <div align="center">
 
-### 🏠 Core Expense Tracking
+### ðŸ  Core Expense Tracking
 
 </div>
 
 | Feature | Description |
 |:-------:|:-----------|
-| 🏘️ **Spaces (Groups)** | Create shared expense groups (Trips, Flatmates, Flatmates, etc.) with scoped expense creation via an embedded FAB |
-| ⚖️ **Smart Splitting** | Split equally, by percentage, or custom amounts per member |
-| 💹 **Balance Engine** | Real-time net balance calculations — who owes whom at a glance |
-| 👥 **Multi-Profile** | Switch between multiple user profiles seamlessly |
-| 🏦 **Wallets** | Track spending across Cash, Bank, Credit Card, UPI sources |
+| ðŸ˜ï¸ **Spaces (Groups)** | Create shared expense groups (Trips, Flatmates, Flatmates, etc.) with scoped expense creation via an embedded FAB |
+| âš–ï¸ **Smart Splitting** | Split equally, by percentage, or custom amounts per member |
+| ðŸ’¹ **Balance Engine** | Real-time net balance calculations â€” who owes whom at a glance |
+| ðŸ‘¥ **Multi-Profile** | Switch between multiple user profiles seamlessly |
+| ðŸ¦ **Wallets** | Track spending across Cash, Bank, Credit Card, UPI sources |
 
 <div align="center">
 
-### 📊 Planning & Analytics
+### ðŸ“Š Planning & Analytics
 
 </div>
 
 | Feature | Description |
 |:-------:|:-----------|
-| 🎯 **Budget Limits** | Set monthly caps globally or per-category with live tracking |
-| 🔴 **Smart Alerts** | Progress indicator turns 🟠 orange when you hit 80% of limit |
-| 📈 **Spending Chart** | Interactive line chart showing your spending over time |
-| 📊 **Pie Chart Analysis** | Premium donut spending distribution by category rendered next to the line chart |
-| 📂 **Nested Categories** | Parent → Child categories (e.g. Food → Groceries → Vegetables) |
-| 🔄 **Recurring Bills** | Auto-insert Netflix, Rent, etc. on schedule — no manual entry |
+| ðŸŽ¯ **Budget Limits** | Set monthly caps globally or per-category with live tracking |
+| ðŸ”´ **Smart Alerts** | Progress indicator turns ðŸŸ  orange when you hit 80% of limit |
+| ðŸ“ˆ **Spending Chart** | Interactive line chart showing your spending over time |
+| ðŸ“Š **Pie Chart Analysis** | Premium donut spending distribution by category rendered next to the line chart |
+| ðŸ“‚ **Nested Categories** | Parent â†’ Child categories (e.g. Food â†’ Groceries â†’ Vegetables) |
+| ðŸ”„ **Recurring Bills** | Auto-insert Netflix, Rent, etc. on schedule â€” no manual entry |
 
 <div align="center">
 
-### 🛠️ Power Tools
+### ðŸ› ï¸ Power Tools
 
 </div>
 
 | Feature | Description |
 |:-------:|:-----------|
-| 📎 **Bill Attachments** | Attach up to **5 receipt images** per expense via PhotoPicker |
-| 📊 **Excel Export** | Export full ledger as `.xlsx` via Apache POI |
-| 📄 **PDF Reports** | Beautiful PDF reports with charts, totals & itemization |
-| 📤 **Native Share** | Share exports via WhatsApp, Email, Drive — any Android app |
-| 🔢 **QR Code Splits** | Scan & generate QR codes for expense sharing |
+| ðŸ“Ž **Bill Attachments** | Attach up to **5 receipt images** per expense via PhotoPicker |
+| ðŸ“Š **Excel Export** | Export full ledger as `.xlsx` via Apache POI |
+| ðŸ“„ **PDF Reports** | Beautiful PDF reports with charts, totals & itemization |
+| ðŸ“¤ **Native Share** | Share exports via WhatsApp, Email, Drive â€” any Android app |
+| ðŸ”¢ **QR Code Splits** | Scan & generate QR codes for expense sharing |
 
 <div align="center">
 
-### 🧮 Financial Calculators
+### ðŸ§® Financial Calculators
 
 </div>
 
 | Calculator | What it Does |
 |:----------:|:------------|
-| 🏠 **EMI Calculator** | Monthly loan installment for home/car loans |
-| 📈 **Interest Calculator** | Simple & Compound interest for savings/debt |
-| 🧾 **GST Calculator** | Add or extract tax % from any bill with fully aligned, auto-wrapping layout |
-| 💵 **Cash Counter** | Increment/decrement and edit counts of all currency note denominations with subtotal and sharing features |
-| 💾 **Save as Expense** | One tap to push any calculated amount into Add Expense with an interactive Space Selector dropdown |
+| ðŸ  **EMI Calculator** | Monthly loan installment for home/car loans |
+| ðŸ“ˆ **Interest Calculator** | Simple & Compound interest for savings/debt |
+| ðŸ§¾ **GST Calculator** | Add or extract tax % from any bill with fully aligned, auto-wrapping layout |
+| ðŸ’µ **Cash Counter** | Increment/decrement and edit counts of all currency note denominations with subtotal and sharing features |
+| ðŸ’¾ **Save as Expense** | One tap to push any calculated amount into Add Expense with an interactive Space Selector dropdown |
 
 <br/>
 
 <!-- Divider -->
 <img src="https://user-images.githubusercontent.com/73097560/115834477-dbab4500-a447-11eb-908a-139a6edaec5c.gif" width="100%">
 
-## 🛠️ Tech Stack
+## ðŸ› ï¸ Tech Stack
 
 <div align="center">
 
@@ -183,65 +183,40 @@ object TechStack {
 <!-- Divider -->
 <img src="https://user-images.githubusercontent.com/73097560/115834477-dbab4500-a447-11eb-908a-139a6edaec5c.gif" width="100%">
 
-## 📁 Project Architecture
+## ðŸ“ Project Architecture
 
 ```
-📦 Expense-Splitter
-┣ 📂 app
-┃ ┣ 📂 src/main
-┃ ┃ ┣ 📂 java/com/example
-┃ ┃ ┃ ┣ 📂 data
-┃ ┃ ┃ ┃ ┣ 📄 AppDatabase.kt          ← Room DB + all entity DAOs
-┃ ┃ ┃ ┃ ┣ 📄 Entities.kt             ← Expense, Space, User, Budget, Subscription
-┃ ┃ ┃ ┃ ┣ 📄 ExpenseDao.kt           ← All SQL queries via Room
-┃ ┃ ┃ ┃ ┣ 📄 ExpenseRepository.kt    ← Single source of truth
-┃ ┃ ┃ ┃ └ 📄 Converters.kt           ← Type converters for Room
-┃ ┃ ┃ ┣ 📂 ui
-┃ ┃ ┃ ┃ ┣ 📄 ExpenseSplitterApp.kt   ← Main scaffold, navigation, all screens
-┃ ┃ ┃ ┃ ┣ 📄 ExpenseViewModel.kt     ← Business logic & state management
-┃ ┃ ┃ ┃ ┣ 📄 ToolsScreen.kt          ← EMI / Interest / GST calculators
-┃ ┃ ┃ ┃ ┣ 📄 CategoryManagerScreen.kt← Nested category CRUD
-┃ ┃ ┃ ┃ ┣ 📄 FinancialPlanningScreens.kt ← Budget & Subscription managers
-┃ ┃ ┃ ┃ └ 📂 theme
-┃ ┃ ┃ ┃   ┣ 📄 Color.kt              ← Complete color palette (light + dark)
-┃ ┃ ┃ ┃   ┣ 📄 Theme.kt              ← Material3 theme engine
-┃ ┃ ┃ ┃   └ 📄 Type.kt               ← Typography system
-┃ ┃ ┃ ┣ 📂 utils
-┃ ┃ ┃ ┃ └ 📄 ExportEngine.kt         ← Excel + PDF generation
-┃ ┃ ┃ ┣ 📂 worker
-┃ ┃ ┃ ┃ └ 📄 RecurringExpenseWorker.kt ← WorkManager auto-insert
-┃ ┃ ┃ └ 📄 MainActivity.kt           ← Entry point + theme state
-┃ ┃ └ 📄 AndroidManifest.xml
-┃ ┣ 📄 build.gradle.kts
-┃ └ 📄 proguard-rules.pro
-┣ 📄 gradle/libs.versions.toml        ← Version catalog
-┣ 📄 README.md
-└ 📄 settings.gradle.kts
-```
-
-<br/>
-
-<!-- Divider -->
-<img src="https://user-images.githubusercontent.com/73097560/115834477-dbab4500-a447-11eb-908a-139a6edaec5c.gif" width="100%">
-
-## 🗃️ Database Schema
-
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│                       ROOM DATABASE SCHEMA                           │
-├──────────────┬────────────────────────────────────────────────────── ┤
-│  User        │  id, name, avatarColor, isActive                      │
-│  Space       │  id, name, description, createdAt, ownerId            │
-│  SpaceMember │  spaceId ──FK──> Space, userId ──FK──> User           │
-│  Expense     │  id, title, amount, category, paidBy, spaceId,        │
-│              │  walletId, date, attachmentUris (JSON list)           │
-│  ExpenseSplit│  expenseId, userId, shareAmount, isPaid                │
-│  Wallet      │  id, name, type (Cash/Bank/UPI/Card), balance         │
-│  Category    │  id, name, icon, parentId (nullable, for nesting)     │
-│  Budget      │  id, categoryId (nullable=global), monthlyLimit        │
-│  Subscription│  id, name, amount, billingCycle, nextBillingDate,     │
-│              │  categoryId, walletId, isActive                       │
-└──────────────┴────────────────────────────────────────────────────── ┘
+ðŸ“¦ Expense-Splitter
+â”£ ðŸ“‚ app
+â”ƒ â”£ ðŸ“‚ src/main
+â”ƒ â”ƒ â”£ ðŸ“‚ java/com/example
+â”ƒ â”ƒ â”ƒ â”£ ðŸ“‚ data
+â”ƒ â”ƒ â”ƒ â”ƒ â”£ ðŸ“„ AppDatabase.kt          â† Room DB + all entity DAOs
+â”ƒ â”ƒ â”ƒ â”ƒ â”£ ðŸ“„ Entities.kt             â† Expense, Space, User, Budget, Subscription
+â”ƒ â”ƒ â”ƒ â”ƒ â”£ ðŸ“„ ExpenseDao.kt           â† All SQL queries via Room
+â”ƒ â”ƒ â”ƒ â”ƒ â”£ ðŸ“„ ExpenseRepository.kt    â† Single source of truth
+â”ƒ â”ƒ â”ƒ â”ƒ â”” ðŸ“„ Converters.kt           â† Type converters for Room
+â”ƒ â”ƒ â”ƒ â”£ ðŸ“‚ ui
+â”ƒ â”ƒ â”ƒ â”ƒ â”£ ðŸ“„ ExpenseSplitterApp.kt   â† Main scaffold, navigation, all screens
+â”ƒ â”ƒ â”ƒ â”ƒ â”£ ðŸ“„ ExpenseViewModel.kt     â† Business logic & state management
+â”ƒ â”ƒ â”ƒ â”ƒ â”£ ðŸ“„ ToolsScreen.kt          â† EMI / Interest / GST calculators
+â”ƒ â”ƒ â”ƒ â”ƒ â”£ ðŸ“„ CategoryManagerScreen.ktâ† Nested category CRUD
+â”ƒ â”ƒ â”ƒ â”ƒ â”£ ðŸ“„ FinancialPlanningScreens.kt â† Budget & Subscription managers
+â”ƒ â”ƒ â”ƒ â”ƒ â”” ðŸ“‚ theme
+â”ƒ â”ƒ â”ƒ â”ƒ   â”£ ðŸ“„ Color.kt              â† Complete color palette (light + dark)
+â”ƒ â”ƒ â”ƒ â”ƒ   â”£ ðŸ“„ Theme.kt              â† Material3 theme engine
+â”ƒ â”ƒ â”ƒ â”ƒ   â”” ðŸ“„ Type.kt               â† Typography system
+â”ƒ â”ƒ â”ƒ â”£ ðŸ“‚ utils
+â”ƒ â”ƒ â”ƒ â”ƒ â”” ðŸ“„ ExportEngine.kt         â† Excel + PDF generation
+â”ƒ â”ƒ â”ƒ â”£ ðŸ“‚ worker
+â”ƒ â”ƒ â”ƒ â”ƒ â”” ðŸ“„ RecurringExpenseWorker.kt â† WorkManager auto-insert
+â”ƒ â”ƒ â”ƒ â”” ðŸ“„ MainActivity.kt           â† Entry point + theme state
+â”ƒ â”ƒ â”” ðŸ“„ AndroidManifest.xml
+â”ƒ â”£ ðŸ“„ build.gradle.kts
+â”ƒ â”” ðŸ“„ proguard-rules.pro
+â”£ ðŸ“„ gradle/libs.versions.toml        â† Version catalog
+â”£ ðŸ“„ README.md
+â”” ðŸ“„ settings.gradle.kts
 ```
 
 <br/>
@@ -249,25 +224,50 @@ object TechStack {
 <!-- Divider -->
 <img src="https://user-images.githubusercontent.com/73097560/115834477-dbab4500-a447-11eb-908a-139a6edaec5c.gif" width="100%">
 
-## 🚀 Getting Started
+## ðŸ—ƒï¸ Database Schema
+
+```
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚                       ROOM DATABASE SCHEMA                           â”‚
+â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ â”¤
+â”‚  User        â”‚  id, name, avatarColor, isActive                      â”‚
+â”‚  Space       â”‚  id, name, description, createdAt, ownerId            â”‚
+â”‚  SpaceMember â”‚  spaceId â”€â”€FKâ”€â”€> Space, userId â”€â”€FKâ”€â”€> User           â”‚
+â”‚  Expense     â”‚  id, title, amount, category, paidBy, spaceId,        â”‚
+â”‚              â”‚  walletId, date, attachmentUris (JSON list)           â”‚
+â”‚  ExpenseSplitâ”‚  expenseId, userId, shareAmount, isPaid                â”‚
+â”‚  Wallet      â”‚  id, name, type (Cash/Bank/UPI/Card), balance         â”‚
+â”‚  Category    â”‚  id, name, icon, parentId (nullable, for nesting)     â”‚
+â”‚  Budget      â”‚  id, categoryId (nullable=global), monthlyLimit        â”‚
+â”‚  Subscriptionâ”‚  id, name, amount, billingCycle, nextBillingDate,     â”‚
+â”‚              â”‚  categoryId, walletId, isActive                       â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ â”˜
+```
+
+<br/>
+
+<!-- Divider -->
+<img src="https://user-images.githubusercontent.com/73097560/115834477-dbab4500-a447-11eb-908a-139a6edaec5c.gif" width="100%">
+
+## ðŸš€ Getting Started
 
 ### Prerequisites
 
 <table>
   <tr>
-    <td>✅</td>
+    <td>âœ…</td>
     <td><strong>Android Studio</strong> Ladybug (2024.2.1) or newer</td>
   </tr>
   <tr>
-    <td>✅</td>
+    <td>âœ…</td>
     <td><strong>JDK 17+</strong> (bundled with Android Studio)</td>
   </tr>
   <tr>
-    <td>✅</td>
+    <td>âœ…</td>
     <td><strong>Android SDK</strong> API 35 installed</td>
   </tr>
   <tr>
-    <td>✅</td>
+    <td>âœ…</td>
     <td><strong>Git</strong> 2.x+</td>
   </tr>
 </table>
@@ -275,20 +275,20 @@ object TechStack {
 ### Installation
 
 ```bash
-# 1️⃣ Clone the repository
+# 1ï¸âƒ£ Clone the repository
 git clone https://github.com/narain-karti/Expense-Splitter.git
 
-# 2️⃣ Navigate into the project
+# 2ï¸âƒ£ Navigate into the project
 cd Expense-Splitter
 
-# 3️⃣ Build the debug APK
+# 3ï¸âƒ£ Build the debug APK
 ./gradlew assembleDebug
 
-# 4️⃣ Install directly on a connected device
+# 4ï¸âƒ£ Install directly on a connected device
 ./gradlew installDebug
 
-# 5️⃣ Or run from Android Studio
-# Open project → Click ▶ Run
+# 5ï¸âƒ£ Or run from Android Studio
+# Open project â†’ Click â–¶ Run
 ```
 
 > **APK Output Path:**
@@ -315,7 +315,7 @@ cd Expense-Splitter
 <!-- Divider -->
 <img src="https://user-images.githubusercontent.com/73097560/115834477-dbab4500-a447-11eb-908a-139a6edaec5c.gif" width="100%">
 
-## 🎨 Theming System
+## ðŸŽ¨ Theming System
 
 Splitify features a fully dynamic **Material Design 3** theming system:
 
@@ -323,44 +323,44 @@ Splitify features a fully dynamic **Material Design 3** theming system:
 
 | Mode | Primary | Secondary | Background | Surface |
 |:----:|:-------:|:---------:|:----------:|:-------:|
-| ☀️ **Light** | `#1565C0` Deep Blue | `#E8590C` Coral | `#F8F9FA` Off-White | `#FFFFFF` Pure White |
-| 🌙 **Dark** | `#90CAF9` Sky Blue | `#FFB74D` Amber | `#0A0A0F` True Dark | `#1A1A2E` Dark Navy |
+| â˜€ï¸ **Light** | `#1565C0` Deep Blue | `#E8590C` Coral | `#F8F9FA` Off-White | `#FFFFFF` Pure White |
+| ðŸŒ™ **Dark** | `#90CAF9` Sky Blue | `#FFB74D` Amber | `#0A0A0F` True Dark | `#1A1A2E` Dark Navy |
 
 </div>
 
-- 🔄 **Toggle** between light and dark with the ☼/🌙 button in the top app bar
-- 🎨 All colors use **MaterialTheme.colorScheme** tokens — zero hardcoded hex values in UI code
-- 📐 Full **typography scale** from `headlineLarge` to `labelSmall`
-- 💱 **Indian Rupee (₹)** as the default currency throughout
+- ðŸ”„ **Toggle** between light and dark with the â˜¼/ðŸŒ™ button in the top app bar
+- ðŸŽ¨ All colors use **MaterialTheme.colorScheme** tokens â€” zero hardcoded hex values in UI code
+- ðŸ“ Full **typography scale** from `headlineLarge` to `labelSmall`
+- ðŸ’± **Indian Rupee (â‚¹)** as the default currency throughout
 
 <br/>
 
 <!-- Divider -->
 <img src="https://user-images.githubusercontent.com/73097560/115834477-dbab4500-a447-11eb-908a-139a6edaec5c.gif" width="100%">
 
-## 📱 App Screens
+## ðŸ“± App Screens
 
 <div align="center">
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│  BOTTOM NAVIGATION                                               │
-│  🏠 Home  │  👥 Spaces  │  ➕ Add  │  💳 Wallets  │  🛠️ Tools │
-└──────────────────────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚  BOTTOM NAVIGATION                                               â”‚
+â”‚  ðŸ  Home  â”‚  ðŸ‘¥ Spaces  â”‚  âž• Add  â”‚  ðŸ’³ Wallets  â”‚  ðŸ› ï¸ Tools â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 ```
 
 | Screen | Description |
 |:------:|:-----------|
-| 🏠 **Home** | Dashboard with spending chart, budget rings, active spaces |
-| 👥 **Spaces** | List of all groups, create/join/leave groups |
-| 📋 **Space Detail** | Expenses list, balances, settle up, export options |
-| ➕ **Add Expense** | Full expense form with category, wallet, split type, attachments |
-| 💳 **Wallets** | Wallet cards with per-wallet balance tracking |
-| 🛠️ **Tools** | EMI / Interest / GST calculators with Save as Expense |
-| 📂 **Categories** | Full nested category manager |
-| 📅 **Subscriptions** | Recurring bill manager |
-| 🎯 **Budgets** | Monthly limit setter with live progress |
-| ⚙️ **Settings** | Profile management, theme toggle, export options |
+| ðŸ  **Home** | Dashboard with spending chart, budget rings, active spaces |
+| ðŸ‘¥ **Spaces** | List of all groups, create/join/leave groups |
+| ðŸ“‹ **Space Detail** | Expenses list, balances, settle up, export options |
+| âž• **Add Expense** | Full expense form with category, wallet, split type, attachments |
+| ðŸ’³ **Wallets** | Wallet cards with per-wallet balance tracking |
+| ðŸ› ï¸ **Tools** | EMI / Interest / GST calculators with Save as Expense |
+| ðŸ“‚ **Categories** | Full nested category manager |
+| ðŸ“… **Subscriptions** | Recurring bill manager |
+| ðŸŽ¯ **Budgets** | Monthly limit setter with live progress |
+| âš™ï¸ **Settings** | Profile management, theme toggle, export options |
 
 </div>
 
@@ -369,44 +369,44 @@ Splitify features a fully dynamic **Material Design 3** theming system:
 <!-- Divider -->
 <img src="https://user-images.githubusercontent.com/73097560/115834477-dbab4500-a447-11eb-908a-139a6edaec5c.gif" width="100%">
 
-## 🔄 Background Automation
+## ðŸ”„ Background Automation
 
 Splitify uses **Android WorkManager** to automatically process recurring transactions:
 
 ```
 WorkManager
-    └── RecurringExpenseWorker (runs every 15 minutes)
-            ├── Fetches all active Subscriptions from Room
-            ├── Checks if nextBillingDate <= today
-            ├── Auto-creates Expense entry in the database
-            └── Updates nextBillingDate to the next cycle
+    â””â”€â”€ RecurringExpenseWorker (runs every 15 minutes)
+            â”œâ”€â”€ Fetches all active Subscriptions from Room
+            â”œâ”€â”€ Checks if nextBillingDate <= today
+            â”œâ”€â”€ Auto-creates Expense entry in the database
+            â””â”€â”€ Updates nextBillingDate to the next cycle
 ```
 
-> **Result:** Your Netflix, Rent, EMIs — all auto-logged even when the app is closed 🎯
+> **Result:** Your Netflix, Rent, EMIs â€” all auto-logged even when the app is closed ðŸŽ¯
 
 <br/>
 
 <!-- Divider -->
 <img src="https://user-images.githubusercontent.com/73097560/115834477-dbab4500-a447-11eb-908a-139a6edaec5c.gif" width="100%">
 
-## 📤 Export Capabilities
+## ðŸ“¤ Export Capabilities
 
 ```
 Export Engine
-├── 📊 Excel (.xlsx)
-│   ├── Built with Apache POI
-│   ├── Styled header rows with bold fonts
-│   ├── Auto-column widths
-│   └── Per-space or per-wallet ledger sheets
-│
-├── 📄 PDF Report
-│   ├── Built with Android PdfDocument API
-│   ├── Summary page (total spent, categories breakdown)
-│   ├── Line-by-line expense itemization
-│   └── Chart snapshot embedded
-│
-└── 📤 Share via Intent.ACTION_SEND
-    └── WhatsApp / Gmail / Drive / Telegram / Any app
+â”œâ”€â”€ ðŸ“Š Excel (.xlsx)
+â”‚   â”œâ”€â”€ Built with Apache POI
+â”‚   â”œâ”€â”€ Styled header rows with bold fonts
+â”‚   â”œâ”€â”€ Auto-column widths
+â”‚   â””â”€â”€ Per-space or per-wallet ledger sheets
+â”‚
+â”œâ”€â”€ ðŸ“„ PDF Report
+â”‚   â”œâ”€â”€ Built with Android PdfDocument API
+â”‚   â”œâ”€â”€ Summary page (total spent, categories breakdown)
+â”‚   â”œâ”€â”€ Line-by-line expense itemization
+â”‚   â””â”€â”€ Chart snapshot embedded
+â”‚
+â””â”€â”€ ðŸ“¤ Share via Intent.ACTION_SEND
+    â””â”€â”€ WhatsApp / Gmail / Drive / Telegram / Any app
 ```
 
 <br/>
@@ -414,7 +414,7 @@ Export Engine
 <!-- Divider -->
 <img src="https://user-images.githubusercontent.com/73097560/115834477-dbab4500-a447-11eb-908a-139a6edaec5c.gif" width="100%">
 
-## 🤝 Contributing
+## ðŸ¤ Contributing
 
 Contributions are always welcome! Here's how to get started:
 
@@ -434,7 +434,7 @@ git push origin feature/AmazingFeature
 
 ### Contribution Guidelines
 - Follow **MVVM** architecture patterns
-- Use `MaterialTheme.colorScheme` tokens — no hardcoded colors
+- Use `MaterialTheme.colorScheme` tokens â€” no hardcoded colors
 - Write unit tests for ViewModel and Repository logic
 - Keep composables small and focused
 - Document public functions with KDoc
@@ -444,7 +444,7 @@ git push origin feature/AmazingFeature
 <!-- Divider -->
 <img src="https://user-images.githubusercontent.com/73097560/115834477-dbab4500-a447-11eb-908a-139a6edaec5c.gif" width="100%">
 
-## 📊 Repository Stats
+## ðŸ“Š Repository Stats
 
 <div align="center">
 
@@ -457,7 +457,7 @@ git push origin feature/AmazingFeature
 
 <br/>
 
-## 📄 License
+## ðŸ“„ License
 
 ```
 MIT License
@@ -486,7 +486,7 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 
 <div align="center">
 
-**Made with ❤️ using Kotlin & Jetpack Compose**
+**Made with â¤ï¸ using Kotlin & Jetpack Compose**
 
 <br/>
 
@@ -494,6 +494,6 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 
 <br/>
 
-*⭐ Star this repo if you found it useful!*
+*â­ Star this repo if you found it useful!*
 
 </div>

@@ -997,6 +997,8 @@ fun CashCalculatorPanel() {
     val subtotals = denominations.associateWith { it.toLong() * (counts[it] ?: 0) }
     val cashGrandTotal = subtotals.values.sum()
     var showClearConfirmation by remember { mutableStateOf(false) }
+    var denomToDelete by remember { mutableStateOf<Int?>(null) }
+    var onlineWalletToDelete by remember { mutableStateOf<String?>(null) }
 
     val onlineTotal = if (showOnline) {
         enabledOnlineWallets.sumOf { onlineWalletTextMap[it]?.toDoubleOrNull() ?: 0.0 }
@@ -1586,30 +1588,19 @@ fun CashCalculatorPanel() {
                                     
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         if (!defaultDenominations.contains(denom)) {
-                                            IconButton(
-                                                onClick = {
-                                                    val newAll = allDenominations - denom
-                                                    val newEnabled = enabledDenominationsSet - denom
-                                                    
-                                                    allDenominationsStr = newAll.sortedDescending().joinToString(",")
-                                                    enabledDenominationsStr = newEnabled.sortedDescending().joinToString(",")
-                                                    
-                                                    sharedPrefs.edit()
-                                                        .putString("all_denominations", allDenominationsStr)
-                                                        .putString("enabled_denominations", enabledDenominationsStr)
-                                                        .apply()
-                                                    
-                                                    Toast.makeText(context, "Removed denomination $denom", Toast.LENGTH_SHORT).show()
-                                                },
-                                                modifier = Modifier.testTag("delete_denom_$denom")
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Delete,
-                                                    contentDescription = "Delete Custom Denomination",
-                                                    tint = MaterialTheme.colorScheme.error
-                                                )
-                                            }
-                                        }
+                                             IconButton(
+                                                 onClick = {
+                                                     denomToDelete = denom
+                                                 },
+                                                 modifier = Modifier.testTag("delete_denom_$denom")
+                                             ) {
+                                                 Icon(
+                                                     imageVector = Icons.Default.Delete,
+                                                     contentDescription = "Delete Custom Denomination",
+                                                     tint = Color(0xFFE57373)
+                                                 )
+                                             }
+                                         }
                                         
                                         Switch(
                                             checked = isEnabled,
@@ -1727,30 +1718,19 @@ fun CashCalculatorPanel() {
                                     
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         if (!defaultOnlineWallets.contains(wallet)) {
-                                            IconButton(
-                                                onClick = {
-                                                    val newAll = allOnlineWallets - wallet
-                                                    val newEnabled = enabledOnlineWalletsSet - wallet
-                                                    
-                                                    allOnlineWalletsStr = newAll.joinToString(",")
-                                                    enabledOnlineWalletsStr = newEnabled.joinToString(",")
-                                                    
-                                                    sharedPrefs.edit()
-                                                        .putString("all_online_wallets", allOnlineWalletsStr)
-                                                        .putString("enabled_online_wallets", enabledOnlineWalletsStr)
-                                                        .apply()
-                                                    
-                                                    Toast.makeText(context, "Removed wallet $wallet", Toast.LENGTH_SHORT).show()
-                                                },
-                                                modifier = Modifier.testTag("delete_online_wallet_$wallet")
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Delete,
-                                                    contentDescription = "Delete Custom Wallet",
-                                                    tint = MaterialTheme.colorScheme.error
-                                                )
-                                            }
-                                        }
+                                             IconButton(
+                                                 onClick = {
+                                                     onlineWalletToDelete = wallet
+                                                 },
+                                                 modifier = Modifier.testTag("delete_online_wallet_$wallet")
+                                             ) {
+                                                 Icon(
+                                                     imageVector = Icons.Default.Delete,
+                                                     contentDescription = "Delete Custom Wallet",
+                                                     tint = Color(0xFFE57373)
+                                                 )
+                                             }
+                                         }
                                         
                                         Switch(
                                             checked = isEnabled,
@@ -1939,6 +1919,76 @@ fun CashCalculatorPanel() {
                     onClick = { showAddCustomOnlineWalletDialog = false },
                     modifier = Modifier.testTag("custom_online_wallet_add_cancel")
                 ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (denomToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { denomToDelete = null },
+            title = { Text("Delete Custom Denomination?", fontWeight = FontWeight.Bold) },
+            text = { Text("Are you sure you want to delete the custom denomination '$selectedCurrencySymbol${denomToDelete}'?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val denom = denomToDelete!!
+                        val newAll = allDenominations - denom
+                        val newEnabled = enabledDenominationsSet - denom
+                        
+                        allDenominationsStr = newAll.sortedDescending().joinToString(",")
+                        enabledDenominationsStr = newEnabled.sortedDescending().joinToString(",")
+                        
+                        sharedPrefs.edit()
+                            .putString("all_denominations", allDenominationsStr)
+                            .putString("enabled_denominations", enabledDenominationsStr)
+                            .apply()
+                        
+                        Toast.makeText(context, "Removed denomination $denom", Toast.LENGTH_SHORT).show()
+                        denomToDelete = null
+                    }
+                ) {
+                    Text("Delete", color = Color(0xFFE57373), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { denomToDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (onlineWalletToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { onlineWalletToDelete = null },
+            title = { Text("Delete Custom Wallet?", fontWeight = FontWeight.Bold) },
+            text = { Text("Are you sure you want to delete the custom online wallet '${onlineWalletToDelete}'?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val wallet = onlineWalletToDelete!!
+                        val newAll = allOnlineWallets - wallet
+                        val newEnabled = enabledOnlineWalletsSet - wallet
+                        
+                        allOnlineWalletsStr = newAll.joinToString(",")
+                        enabledOnlineWalletsStr = newEnabled.joinToString(",")
+                        
+                        sharedPrefs.edit()
+                            .putString("all_online_wallets", allOnlineWalletsStr)
+                            .putString("enabled_online_wallets", enabledOnlineWalletsStr)
+                            .apply()
+                        
+                        Toast.makeText(context, "Removed wallet $wallet", Toast.LENGTH_SHORT).show()
+                        onlineWalletToDelete = null
+                    }
+                ) {
+                    Text("Delete", color = Color(0xFFE57373), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { onlineWalletToDelete = null }) {
                     Text("Cancel")
                 }
             }

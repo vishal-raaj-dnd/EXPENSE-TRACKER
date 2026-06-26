@@ -33,272 +33,6 @@ import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BudgetManagerScreen(
-    viewModel: ExpenseViewModel,
-    onBack: () -> Unit
-) {
-    val budgets by viewModel.allBudgets.collectAsStateWithLifecycle()
-    val categories by viewModel.allCategories.collectAsStateWithLifecycle()
-
-    var isGlobal by remember { mutableStateOf(true) }
-    var selectedCategoryName by remember { mutableStateOf("") }
-    var limitAmountStr by remember { mutableStateOf("") }
-    
-    val expenses by viewModel.allExpenses.collectAsStateWithLifecycle(emptyList())
-    var budgetToDelete by remember { mutableStateOf<Budget?>(null) }
-    
-    // Automatically select first category if not global
-    LaunchedEffect(isGlobal, categories) {
-        if (!isGlobal && categories.isNotEmpty() && selectedCategoryName.isEmpty()) {
-            selectedCategoryName = categories.first().name
-        }
-    }
-
-    Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
-            TopAppBar(
-                title = { Text("Budget Manager", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack, modifier = Modifier.testTag("budget_back_button")) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
-            )
-        },
-        containerColor = MaterialTheme.colorScheme.surface
-    ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Section Title: Add Budget
-            item {
-                Text(
-                    text = "Set Monthly Spending Limit",
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            // Input Card
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)),
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        // Global vs Category selector
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Button(
-                                onClick = { isGlobal = true },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (isGlobal) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                                ),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.weight(1f).testTag("select_global_budget")
-                            ) {
-                                Text("Global Budget", color = if (isGlobal) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                            }
-                            Button(
-                                onClick = { isGlobal = false },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (!isGlobal) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                                ),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.weight(1f).testTag("select_category_budget")
-                            ) {
-                                Text("Per Category", color = if (!isGlobal) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                            }
-                        }
-
-                        // Category Dropdown/Selector (when Category is chosen)
-                        if (!isGlobal) {
-                            var expanded by remember { mutableStateOf(false) }
-                            Box(modifier = Modifier.fillMaxWidth()) {
-                                OutlinedButton(
-                                    onClick = { expanded = true },
-                                    modifier = Modifier.fillMaxWidth().testTag("category_dropdown_trigger")
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = if (selectedCategoryName.isEmpty()) "Select Category" else "Category: $selectedCategoryName",
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-                                }
-                                DropdownMenu(
-                                    expanded = expanded,
-                                    onDismissRequest = { expanded = false },
-                                    modifier = Modifier.fillMaxWidth(0.9f).heightIn(max = 240.dp)
-                                ) {
-                                    categories.forEach { cat ->
-                                        DropdownMenuItem(
-                                            text = { Text(cat.name) },
-                                            onClick = {
-                                                selectedCategoryName = cat.name
-                                                expanded = false
-                                            },
-                                            modifier = Modifier.testTag("category_menu_item_${cat.name}")
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        // Limit Amount Input
-                        OutlinedTextField(
-                            value = limitAmountStr,
-                            onValueChange = { limitAmountStr = it },
-                            label = { Text("Monthly Limit Amount (₹)") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.fillMaxWidth().testTag("budget_amount_input"),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                            )
-                        )
-
-                        // Save Button
-                        Button(
-                            onClick = {
-                                val amt = limitAmountStr.toDoubleOrNull()
-                                if (amt != null && amt > 0.0) {
-                                    val cat = if (isGlobal) null else selectedCategoryName
-                                    val currentMonthYear = SimpleDateFormat("MM/yyyy", Locale.US).format(Date(System.currentTimeMillis()))
-                                    viewModel.insertBudget(
-                                        isGlobal = isGlobal,
-                                        categoryName = cat,
-                                        limitAmount = amt,
-                                        monthYear = currentMonthYear
-                                    )
-                                    limitAmountStr = ""
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth().testTag("save_budget_button"),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text("Set Spending Limit", fontWeight = FontWeight.Black)
-                        }
-                    }
-                }
-            }
-
-            // Section: Current Budgets list
-            item {
-                val currentMonthYearHeader = remember {
-                    SimpleDateFormat("MMMM yyyy", Locale.US).format(Date(System.currentTimeMillis()))
-                }
-                Text(
-                    text = "Active Spending Limits ($currentMonthYearHeader)",
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-
-            if (budgets.isEmpty()) {
-                item {
-                    Text(
-                        text = "No limits set yet.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 14.sp
-                    )
-                }
-            } else {
-                items(budgets) { budget ->
-                    val label = if (budget.isGlobal) "Global Limit" else budget.categoryName ?: "Other"
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth().testTag("active_budget_item_${label}")
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(14.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .background(if (budget.isGlobal) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f))
-                                ) {
-                                    Icon(
-                                        imageVector = if (budget.isGlobal) Icons.Default.Public else Icons.Default.Category,
-                                        contentDescription = "Budget Icon",
-                                        tint = if (budget.isGlobal) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(text = label, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    
-                                    val allowedCategories = remember(budget.categoryName, categories) {
-                                        if (budget.isGlobal) emptySet() else getCategoryAndChildrenNames(budget.categoryName ?: "", categories)
-                                    }
-                                    val budgetMonthYear = budget.monthYear
-                                    val budgetIsGlobal = budget.isGlobal
-                                    val budgetLimit = budget.limitAmount
-                                    val spentAmount = remember(expenses, budgetMonthYear, budgetIsGlobal, allowedCategories) {
-                                        expenses.filter {
-                                            val my = SimpleDateFormat("MM/yyyy", Locale.US).format(Date(it.date))
-                                            my == budgetMonthYear &&
-                                            !it.category.equals("Settlement", ignoreCase = true) &&
-                                            (budgetIsGlobal || allowedCategories.contains(it.category))
-                                        }.sumOf { it.amount }
-                                    }
-                                    val progress = if (budgetLimit > 0) (spentAmount / budgetLimit).toFloat() else 0f
-                                    val progressColor = if (spentAmount > budgetLimit) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-                                    
-                                    Text(
-                                        text = "Spent: ₹${String.format(Locale.US, "%.2f", spentAmount)} of ₹${String.format(Locale.US, "%.2f", budgetLimit)}",
-                                        color = if (spentAmount > budgetLimit) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontSize = 12.sp
-                                    )
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    LinearProgressIndicator(
-                                        progress = progress.coerceAtMost(1f),
-                                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
-                                        color = progressColor,
-                                        trackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            IconButton(onClick = { budgetToDelete = budget }, modifier = Modifier.testTag("delete_budget_${label}")) {
-                                Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete Budget", tint = MaterialTheme.colorScheme.error)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
 fun SubscriptionManagerScreen(
     viewModel: ExpenseViewModel,
     onBack: () -> Unit
@@ -317,6 +51,28 @@ fun SubscriptionManagerScreen(
     var selectedPayerId by remember { mutableStateOf<Long?>(null) }
     var intervalType by remember { mutableStateOf("Monthly") }
     var subToDelete by remember { mutableStateOf<Subscription?>(null) }
+    if (subToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { subToDelete = null },
+            title = { Text("Delete Subscription?") },
+            text = { Text("Are you sure you want to delete subscription '${subToDelete!!.name}'?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteSubscription(subToDelete!!)
+                        subToDelete = null
+                    }
+                ) {
+                    Text("Delete", color = Color(0xFFE57373))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { subToDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     // Dropdown states
     var spaceExpanded by remember { mutableStateOf(false) }
@@ -687,8 +443,31 @@ fun SubscriptionManagerScreen(
                                     Text(text = "Next Run: $simpleDate", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                                 }
                             }
-                            IconButton(onClick = { subToDelete = sub }, modifier = Modifier.testTag("delete_sub_${sub.name}")) {
-                                Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete Sub", tint = MaterialTheme.colorScheme.error)
+                            var subMenuExpanded by remember { mutableStateOf(false) }
+                            Box {
+                                IconButton(
+                                    onClick = { subMenuExpanded = true },
+                                    modifier = Modifier.testTag("sub_menu_${sub.name}")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.MoreVert,
+                                        contentDescription = "Subscription Options",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = subMenuExpanded,
+                                    onDismissRequest = { subMenuExpanded = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Delete", color = Color(0xFFE57373)) },
+                                        onClick = {
+                                            subMenuExpanded = false
+                                            subToDelete = sub
+                                        },
+                                        modifier = Modifier.testTag("delete_sub_${sub.name}")
+                                    )
+                                }
                             }
                         }
                     }

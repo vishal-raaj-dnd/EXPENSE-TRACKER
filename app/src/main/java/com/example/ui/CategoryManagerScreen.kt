@@ -440,18 +440,34 @@ fun CategoryNodeItem(
             )
         }
 
-        IconButton(
-            onClick = onDelete,
-            modifier = Modifier
-                .size(36.dp)
-                .testTag("delete_cat_${category.name}")
-        ) {
-            Icon(
-                imageVector = Icons.Default.Delete,
-                contentDescription = "Delete",
-                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
-                modifier = Modifier.size(18.dp)
-            )
+        var catMenuExpanded by remember { mutableStateOf(false) }
+        Box {
+            IconButton(
+                onClick = { catMenuExpanded = true },
+                modifier = Modifier
+                    .size(36.dp)
+                    .testTag("cat_menu_${category.name}")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = "Category Options",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            DropdownMenu(
+                expanded = catMenuExpanded,
+                onDismissRequest = { catMenuExpanded = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Delete", color = Color(0xFFE57373)) },
+                    onClick = {
+                        catMenuExpanded = false
+                        onDelete()
+                    },
+                    modifier = Modifier.testTag("delete_cat_${category.name}")
+                )
+            }
         }
     }
 }

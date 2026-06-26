@@ -158,7 +158,7 @@ object ExportEngine {
         // Append Member Balances Section
         rows.add(emptyList())
         rows.add(listOf("MEMBER NET BALANCES"))
-        rows.add(listOf("Member Name", "Total Paid (₹)", "Total Owed (₹)", "Net Balance (₹)"))
+        rows.add(listOf("Member Name", "Paid (₹)", "Charged (₹)", "Due (₹)"))
         balances.forEach { b ->
             rows.add(listOf(
                 b.user.name,
@@ -427,7 +427,7 @@ object ExportEngine {
         canvas.drawText("ITEMIZED TRANSACTION HISTORY", 25f, y, Paint(titlePaint).apply { textSize = 11f })
         y += 15f
 
-        val colX = floatArrayOf(25f, 135f, 210f, 295f, 370f, 435f)
+        val colX = floatArrayOf(25f, 150f, 225f, 305f, 380f, 445f)
         canvas.drawRect(25f, y, 570f, y + 22f, primaryColorPaint)
         canvas.drawText("Date", colX[0] + 5f, y + 15f, Paint(headerPaint).apply { textSize = 9f })
         canvas.drawText("Category", colX[1], y + 15f, headerPaint)
@@ -477,9 +477,9 @@ object ExportEngine {
         val balColX = floatArrayOf(25f, 180f, 280f, 380f)
         canvas.drawRect(25f, y, 570f, y + 18f, primaryColorPaint)
         canvas.drawText("Member Name", balColX[0] + 5f, y + 12f, Paint(headerPaint).apply { textSize = 9f })
-        canvas.drawText("Total Paid", balColX[1], y + 12f, Paint(headerPaint).apply { textSize = 9f })
-        canvas.drawText("Total Owed", balColX[2], y + 12f, Paint(headerPaint).apply { textSize = 9f })
-        canvas.drawText("Net Balance", balColX[3], y + 12f, Paint(headerPaint).apply { textSize = 9f })
+        canvas.drawText("Paid", balColX[1], y + 12f, Paint(headerPaint).apply { textSize = 9f })
+        canvas.drawText("Charged", balColX[2], y + 12f, Paint(headerPaint).apply { textSize = 9f })
+        canvas.drawText("Due", balColX[3], y + 12f, Paint(headerPaint).apply { textSize = 9f })
         y += 18f
 
         balances.forEachIndexed { index, b ->

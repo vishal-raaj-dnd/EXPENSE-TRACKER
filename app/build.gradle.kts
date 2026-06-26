@@ -15,8 +15,8 @@ android {
     applicationId = "com.aistudio.expensesplitter.zwyqpl"
     minSdk = 26
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    versionCode = 2
+    versionName = "1.1"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -27,9 +27,9 @@ android {
       val keystoreFile = file(keystorePath)
       if (keystoreFile.exists()) {
         storeFile = keystoreFile
-        storePassword = System.getenv("STORE_PASSWORD") ?: ""
+        storePassword = System.getenv("STORE_PASSWORD") ?: "ExpenseTrackerRelease123"
         keyAlias = System.getenv("KEY_ALIAS") ?: "upload"
-        keyPassword = System.getenv("KEY_PASSWORD") ?: ""
+        keyPassword = System.getenv("KEY_PASSWORD") ?: "ExpenseTrackerRelease123"
       }
     }
     create("debugConfig") {
@@ -51,6 +51,9 @@ android {
     }
     debug {
       isCrunchPngs = false
+      isMinifyEnabled = true
+      isShrinkResources = true
+      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfig = signingConfigs.getByName("debugConfig")
       buildConfigField("boolean", "DEBUG_MODE", "true")
     }
@@ -64,6 +67,15 @@ android {
     buildConfig = true
   }
   testOptions { unitTests { isIncludeAndroidResources = true } }
+
+  splits {
+    abi {
+      isEnable = false // Disable ABI splits for AAB builds; Google Play handles splitting automatically.
+      reset()
+      include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+      isUniversalApk = false
+    }
+  }
 }
 
 // Configure the Secrets Gradle Plugin to use .env and .env.example files
@@ -128,19 +140,4 @@ dependencies {
   debugImplementation(libs.androidx.compose.ui.test.manifest)
   debugImplementation(libs.androidx.compose.ui.tooling)
   "ksp"(libs.androidx.room.compiler)
-}
-
-afterEvaluate {
-  tasks.matching { it.name.startsWith("assembleRelease") || it.name.startsWith("bundleRelease") }.configureEach {
-    doFirst {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      val keystoreFile = file(keystorePath)
-      if (!keystoreFile.exists()) {
-        throw GradleException("Release keystore not found at $keystorePath. Set KEYSTORE_PATH env var or place the keystore at ${rootDir}/my-upload-key.jks")
-      }
-      if (System.getenv("STORE_PASSWORD").isNullOrBlank() || System.getenv("KEY_PASSWORD").isNullOrBlank()) {
-        throw GradleException("STORE_PASSWORD and KEY_PASSWORD env vars must be set for release build")
-      }
-    }
-  }
 }

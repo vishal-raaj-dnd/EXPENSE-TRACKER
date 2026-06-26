@@ -358,10 +358,6 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
 
     fun removeUserFromSpaceAndRecalculate(spaceId: Long, userId: Long) {
         viewModelScope.launch {
-            if (userId == _currentUserId.value) {
-                // Do not allow the current active user to be removed from the space!
-                return@launch
-            }
             repository.removeUserFromSpaceAndRecalculate(spaceId, userId)
         }
     }

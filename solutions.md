@@ -1,6 +1,6 @@
-# VISH-tracker (Travel Split) — Solutions & Fixes
+﻿# VISH-tracker (Travel Split) â€” Solutions & Fixes
 
-> All fixes are ordered by severity (Critical → High → Medium → Low).
+> All fixes are ordered by severity (Critical â†’ High â†’ Medium â†’ Low).
 > Each fix includes exact file and line references.
 
 ---
@@ -58,7 +58,7 @@ fun formatAmount(amount: Double): String {
         if (index > 0 && (index % 2 == 0)) result.append(",")
         result.append(c)
     }
-    return "₹${result.reverse()}${decPart}"
+    return "â‚¹${result.reverse()}${decPart}"
 }
 ```
 
@@ -141,7 +141,7 @@ suspend fun nullifyExpensesWallet(walletId: Long)
 
 ## HIGH FIXES
 
-### H1. Export not working — FileProvider path mismatch
+### H1. Export not working â€” FileProvider path mismatch
 
 **Fix:** Change `file_paths.xml` to expose the entire cache directory:
 
@@ -158,7 +158,7 @@ suspend fun nullifyExpensesWallet(walletId: Long)
 val sharedDir = File(context.cacheDir, "shared").also { it.mkdirs() }
 val file = File(sharedDir, filename)
 ```
-And similarly for CSV (`File(context.cacheDir, ...)` → `File(sharedDir, ...)`) and PDF.
+And similarly for CSV (`File(context.cacheDir, ...)` â†’ `File(sharedDir, ...)`) and PDF.
 
 ---
 
@@ -527,7 +527,7 @@ val n = (years * 12).toInt()  // months
 
 **Fix:** Add `AlertDialog` confirmation before clearing.
 
-### M4. New wallet invalid input → 0.0 silently (WalletManagerScreen.kt:205)
+### M4. New wallet invalid input â†’ 0.0 silently (WalletManagerScreen.kt:205)
 
 **Fix:** Show error text/Toast instead of silently defaulting:
 ```kotlin
@@ -553,7 +553,7 @@ walletBalance = String.format(Locale.US, "%.2f", wallet.balance)
 suspend fun getCategoryCountByName(name: String): Int
 ```
 
-### M7. Division by zero → 0.0 (ExpenseSplitterApp.kt:144)
+### M7. Division by zero â†’ 0.0 (ExpenseSplitterApp.kt:144)
 
 **Fix:**
 ```kotlin
@@ -631,7 +631,7 @@ fun columnLetter(index: Int): String {
 
 ### M16. Expense insert + wallet deduction not atomic (ExpenseRepository.kt:134-137)
 
-**Fix:** Same as H2 — wrap in `@Transaction`.
+**Fix:** Same as H2 â€” wrap in `@Transaction`.
 
 ### M17. No subscription cleanup on member removal (ExpenseDao.kt:238-272)
 
@@ -719,7 +719,7 @@ val clampedRate = taxRate.coerceIn(0.0, 100.0)
 
 **Fix:** Add auto-generated `id` primary key, keep unique constraint on `(spaceId, userId)`.
 
-### L5. Long→Double precision loss (ExpenseViewModel.kt:18-26)
+### L5. Longâ†’Double precision loss (ExpenseViewModel.kt:18-26)
 
 **Fix:** Use `DecimalFormat("##,##,##,##0")` for Long/Int overloads.
 
@@ -752,14 +752,14 @@ The "export options not working" issue has **two root causes**:
 | # | Problem | File | Fix | Impact |
 |---|---------|------|-----|--------|
 | 1 | FileProvider can't find export files | `res/xml/file_paths.xml:3` | Change `<cache-path ... path="shared/" />` to `<cache-path ... path="." />` OR write files to `cache/shared/` | Without this, ALL exports crash silently (catch block in `shareFile` shows "Sharing failed") |
-| 2 | XLSX amounts stored as text | `ExportEngine.kt:73-78` | Write raw numeric values (no commas) for number cells | Without this, exported XLSX files have amounts as text — cannot sum/formula in Excel |
+| 2 | XLSX amounts stored as text | `ExportEngine.kt:73-78` | Write raw numeric values (no commas) for number cells | Without this, exported XLSX files have amounts as text â€” cannot sum/formula in Excel |
 
 **Recommended quick fix for #1** (change file_paths.xml):
 ```xml
 <cache-path name="cache" path="." />
 ```
 
-**Recommended complete fix for #1** (write to shared subdirectory — more secure):
+**Recommended complete fix for #1** (write to shared subdirectory â€” more secure):
 ```kotlin
 // In ExportEngine, update writeXlsxFile:
 val sharedDir = File(context.cacheDir, "shared").also { it.mkdirs() }

@@ -1,4 +1,4 @@
-# VISH-tracker (Travel Split) — Complete Bug Report
+﻿# VISH-tracker (Travel Split) â€” Complete Bug Report
 
 > Total: **56 bugs** (5 Critical, 14 High, 26 Medium, 11 Low)
 
@@ -8,7 +8,7 @@
 
 ### C1. `resolveDebts` infinite loop when floating-point remainder hits exactly 0.01
 - **File:** `app/src/main/java/com/example/ui/ExpenseViewModel.kt:572-577`
-- **Condition:** `< 0.01` does not advance index when remainder is *exactly* `0.01` → infinite `while` loop → ANR
+- **Condition:** `< 0.01` does not advance index when remainder is *exactly* `0.01` â†’ infinite `while` loop â†’ ANR
 
 ### C2. `formatAmount` uses wrong Indian grouping pattern
 - **File:** `app/src/main/java/com/example/ui/ExpenseViewModel.kt:14`
@@ -20,7 +20,7 @@
 - **Issue:** If user B is removed, expenses where B was the payer are **fully deleted**, including all other participants' split contributions
 
 ### C4. Deleting a parent category orphans child categories
-- **File:** `app/src/main/java/com/example/ui/CategoryManagerScreen.kt:297` → `ExpenseRepository.kt:85-88`
+- **File:** `app/src/main/java/com/example/ui/CategoryManagerScreen.kt:297` â†’ `ExpenseRepository.kt:85-88`
 - **Issue:** `deleteCategory` only deletes budgets by name + the category itself. Child categories with `parentId` pointing to the deleted category become orphaned
 
 ### C5. Wallet deletion orphans expense wallet references
@@ -31,18 +31,18 @@
 
 ## HIGH (Logic / Data Integrity / Crash)
 
-### H1. Export not working — FileProvider path mismatch
+### H1. Export not working â€” FileProvider path mismatch
 - **File:** `app/src/main/res/xml/file_paths.xml:3` + `app/src/main/java/com/example/utils/ExportEngine.kt:86-101`
 - **Root cause of user-reported "export options not working"**
 - **Issue:** Export files are written to `context.cacheDir/filename`, but FileProvider at `file_paths.xml` only exposes `cache/shared/`. `FileProvider.getUriForFile()` throws `IllegalArgumentException: Failed to find configured root`
 
 ### H2. Wallet deduction not wrapped in transaction
 - **File:** `app/src/main/java/com/example/data/ExpenseRepository.kt:134-137`
-- **Issue:** `deductFromWallet` runs before `insertSubscription(updatedSub)` with no `@Transaction`. DB crash after deduction but before insert → money lost
+- **Issue:** `deductFromWallet` runs before `insertSubscription(updatedSub)` with no `@Transaction`. DB crash after deduction but before insert â†’ money lost
 
 ### H3. `settleDebt` crash with no wallets
 - **File:** `app/src/main/java/com/example/ui/ExpenseViewModel.kt:507`
-- **Issue:** Uses `repository.allWallets.first()` → `NoSuchElementException` on empty wallet list
+- **Issue:** Uses `repository.allWallets.first()` â†’ `NoSuchElementException` on empty wallet list
 
 ### H4. DB init race condition
 - **File:** `app/src/main/java/com/example/data/AppDatabase.kt:65-67`
@@ -50,37 +50,37 @@
 
 ### H5. Subscription `nextDueDate` set 1 second in the past
 - **File:** `app/src/main/java/com/example/ui/FinancialPlanningScreens.kt:569`
-- **Issue:** `System.currentTimeMillis() - 1000L` → subscription immediately overdue on first worker run
+- **Issue:** `System.currentTimeMillis() - 1000L` â†’ subscription immediately overdue on first worker run
 
 ### H6. `Uri.fromFile()` for camera/gallery attachments (deprecated since API 24)
 - **File:** `ExpenseSplitterApp.kt:2610` (camera) and `ExpenseSplitterApp.kt:4906` (gallery)
-- **Issue:** `Uri.fromFile()` returns `file://` URI → deprecated, may throw `FileUriExposedException` under StrictMode, cannot be shared across apps
+- **Issue:** `Uri.fromFile()` returns `file://` URI â†’ deprecated, may throw `FileUriExposedException` under StrictMode, cannot be shared across apps
 
-### H7. Equal split rounding error — total ≠ sum of splits
+### H7. Equal split rounding error â€” total â‰  sum of splits
 - **File:** `app/src/main/java/com/example/ui/ExpenseViewModel.kt:320`
-- **Issue:** `amount / size` rounded to 2 decimal places per split → `100/3 = 33.33×3 = 99.99 ≠ 100`. 0.01 is lost
+- **Issue:** `amount / size` rounded to 2 decimal places per split â†’ `100/3 = 33.33Ã—3 = 99.99 â‰  100`. 0.01 is lost
 
 ### H8. All split modes have rounding errors
 - **File:** `app/src/main/java/com/example/ui/ExpenseViewModel.kt:347-417`
-- **Issue:** Exact, percentage, and itemized split modes also have sum-of-splits ≠ total rounding issues
+- **Issue:** Exact, percentage, and itemized split modes also have sum-of-splits â‰  total rounding issues
 
 ### H9. Settlement always uses first wallet, not user's selected wallet
 - **File:** `app/src/main/java/com/example/ui/ExpenseViewModel.kt:507-508`
-- **Issue:** `wallets.first()` → arbitrary wallet selection. No user choice
+- **Issue:** `wallets.first()` â†’ arbitrary wallet selection. No user choice
 
 ### H10. Redistribution on member removal excludes payer from shortfall
 - **File:** `app/src/main/java/com/example/data/ExpenseDao.kt:259-260`
-- **Issue:** Shortfall redistributed only among non-payers. Payer's share (as a consumer) is ignored → incorrect balances
+- **Issue:** Shortfall redistributed only among non-payers. Payer's share (as a consumer) is ignored â†’ incorrect balances
 
 ### H11. No foreign key constraints on any entity
 - **File:** `app/src/main/java/com/example/data/Entities.kt` (entire file)
-- **Issue:** No `@ForeignKey` → Room does not enforce referential integrity. Manual cascades are incomplete everywhere
+- **Issue:** No `@ForeignKey` â†’ Room does not enforce referential integrity. Manual cascades are incomplete everywhere
 
 ### H12. XLSX stores amounts as text strings, not numbers
 - **File:** `app/src/main/java/com/example/utils/ExportEngine.kt:73-78`
-- **Issue:** `formatAmount()` returns comma-formatted string → `toDoubleOrNull()` returns null → stored as inline string. Cannot be summed in Excel
+- **Issue:** `formatAmount()` returns comma-formatted string â†’ `toDoubleOrNull()` returns null â†’ stored as inline string. Cannot be summed in Excel
 
-### H13. `deleteUser` has no cascade — orphans everywhere
+### H13. `deleteUser` has no cascade â€” orphans everywhere
 - **File:** `app/src/main/java/com/example/data/ExpenseDao.kt:20`
 - **Issue:** `@Delete` removes user but leaves orphaned `space_members`, `expense`, `expense_split` rows
 
@@ -94,19 +94,19 @@
 
 ### M1. Integer overflow in Cash Counter denomination multiplication
 - **File:** `app/src/main/java/com/example/ui/ToolsScreen.kt:968`
-- **Issue:** `Int × Int` overflows for large counts (e.g., 2000 × 2M)
+- **Issue:** `Int Ã— Int` overflows for large counts (e.g., 2000 Ã— 2M)
 
 ### M2. EMI calculator silently discards fractional year input
 - **File:** `app/src/main/java/com/example/ui/ToolsScreen.kt:141`
-- **Issue:** `toIntOrNull()` converts 0.5 → null → 0 → triggers `years <= 0` guard → shows ₹0 EMI with no error
+- **Issue:** `toIntOrNull()` converts 0.5 â†’ null â†’ 0 â†’ triggers `years <= 0` guard â†’ shows â‚¹0 EMI with no error
 
 ### M3. Cash counter "Delete" has no confirmation
 - **File:** `app/src/main/java/com/example/ui/ToolsScreen.kt:1470-1482`
-- **Issue:** Destructive clear with no confirmation dialog → accidental data loss
+- **Issue:** Destructive clear with no confirmation dialog â†’ accidental data loss
 
 ### M4. New wallet silently defaults balance to 0.0 on invalid input
 - **File:** `app/src/main/java/com/example/ui/WalletManagerScreen.kt:205`
-- **Issue:** `toDoubleOrNull() ?: 0.0` — garbage input silently becomes 0.0
+- **Issue:** `toDoubleOrNull() ?: 0.0` â€” garbage input silently becomes 0.0
 
 ### M5. Wallet editing loses precision on `balance.toString()`
 - **File:** `app/src/main/java/com/example/ui/WalletManagerScreen.kt:294`
@@ -122,7 +122,7 @@
 
 ### M8. Expression parser silently skips invalid characters
 - **File:** `app/src/main/java/com/example/ui/ExpenseSplitterApp.kt:168-172`
-- **Issue:** `1+a` → `1+0 = 1.0`. No error signaled
+- **Issue:** `1+a` â†’ `1+0 = 1.0`. No error signaled
 
 ### M9. Expression parser ignores mismatched parentheses
 - **File:** `app/src/main/java/com/example/ui/ExpenseSplitterApp.kt:152-155`
@@ -130,11 +130,11 @@
 
 ### M10. QR scanner has TOCTOU race condition on `isProcessing` guard
 - **File:** `app/src/main/java/com/example/ui/ExpenseSplitterApp.kt:670-691`
-- **Issue:** Two concurrent barcode scans can both pass `!isProcessing` check → double import
+- **Issue:** Two concurrent barcode scans can both pass `!isProcessing` check â†’ double import
 
 ### M11. Create Date filter sorts by `id`, not by `date` field
 - **File:** `app/src/main/java/com/example/ui/ExpenseSplitterApp.kt:1811`
-- **Issue:** `sortedByDescending { it.id }` — user-customizable `date` field ignored
+- **Issue:** `sortedByDescending { it.id }` â€” user-customizable `date` field ignored
 
 ### M12. No onboarding reset mechanism
 - **File:** `app/src/main/java/com/example/ui/ExpenseSplitterApp.kt:366`
@@ -144,17 +144,17 @@
 - **File:** `app/src/main/java/com/example/MainActivity.kt:45`
 - **Issue:** `remember { mutableStateOf(true) }` resets on Activity recreation
 
-### M14. DB init + WorkManager setup on main thread → ANR risk
+### M14. DB init + WorkManager setup on main thread â†’ ANR risk
 - **File:** `app/src/main/java/com/example/MainActivity.kt:29-41`
 - **Issue:** Room `databaseBuilder.build()` runs synchronously on main thread
 
 ### M15. XLSX column letter overflow for >26 columns
 - **File:** `app/src/main/java/com/example/utils/ExportEngine.kt:70-71`
-- **Issue:** `('A' + colIdx)` produces `'['` for column 26 → invalid XML
+- **Issue:** `('A' + colIdx)` produces `'['` for column 26 â†’ invalid XML
 
 ### M16. `processOverdueSubscriptions` expense insert + wallet deduction not atomic
 - **File:** `app/src/main/java/com/example/data/ExpenseRepository.kt:134-137`
-- **Issue:** Crash between insert and deduction → wallet/expense mismatch
+- **Issue:** Crash between insert and deduction â†’ wallet/expense mismatch
 
 ### M17. Member removal doesn't clean up subscriptions
 - **File:** `app/src/main/java/com/example/data/ExpenseDao.kt:238-272`
@@ -166,7 +166,7 @@
 
 ### M19. Budget deletion by category name may over-delete
 - **File:** `app/src/main/java/com/example/data/ExpenseRepository.kt:85-87`
-- **Issue:** Multiple categories with same name (allowed) → `deleteBudgetsByCategoryName` deletes budgets for ALL of them
+- **Issue:** Multiple categories with same name (allowed) â†’ `deleteBudgetsByCategoryName` deletes budgets for ALL of them
 
 ### M20. Wallet update via `insertWallet` (REPLACE) is fragile
 - **File:** `app/src/main/java/com/example/ui/WalletManagerScreen.kt:208-213`
@@ -180,7 +180,7 @@
 - **File:** `app/src/main/java/com/example/ui/ExpenseViewModel.kt:583-623`
 - **Issue:** Large spaces with many expenses/splits produce JSON that exceeds QR code capacity (~3KB)
 
-### M23. TITLE filter is useless — groups everything under one header
+### M23. TITLE filter is useless â€” groups everything under one header
 - **File:** `app/src/main/java/com/example/ui/ExpenseSplitterApp.kt:1825-1826`
 - **Issue:** `groupBy { "Expenses (A-Z)" }` puts all expenses in a single group
 
@@ -218,7 +218,7 @@
 
 ### L5. `Long.formatAmount` loses precision for values > 2^53
 - **File:** `app/src/main/java/com/example/ui/ExpenseViewModel.kt:18-26`
-- **Issue:** `Long` → `Double` cast
+- **Issue:** `Long` â†’ `Double` cast
 
 ### L6. Inconsistent year parsing: EMI uses `Int`, Interest uses `Double`
 - **File:** `app/src/main/java/com/example/ui/ToolsScreen.kt:141 vs 367`
@@ -240,7 +240,7 @@
 - **File:** `app/src/main/java/com/example/data/ExpenseDao.kt:114-115`
 - **Issue:** `getAllCategories()` returns unsorted; UI relies on DB insertion order
 
-### L11. `ToolsScreen` compound interest formula — OK but spreads across code
+### L11. `ToolsScreen` compound interest formula â€” OK but spreads across code
 - **File:** `app/src/main/java/com/example/ui/ToolsScreen.kt:377`
 - **Issue:** Formula is actually correct but could use clearer variable naming
 
