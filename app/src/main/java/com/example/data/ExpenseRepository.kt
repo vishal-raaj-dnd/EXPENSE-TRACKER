@@ -41,6 +41,10 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
         return expenseDao.insertSpace(space)
     }
 
+    suspend fun updateSpace(space: Space) {
+        expenseDao.updateSpace(space)
+    }
+
     suspend fun addSpaceWithMembers(name: String, description: String, userIds: List<Long>): Long {
         return expenseDao.addSpaceWithMembers(name, description, userIds)
     }
@@ -95,7 +99,11 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
             expenseDao.deleteBudgetsByCategoryName(child.name)
         }
         expenseDao.deleteBudgetsByCategoryName(category.name)
-        expenseDao.deleteCategory(category)
+        expenseDao.deleteCategoryCascade(category)
+    }
+
+    suspend fun updateCategory(oldName: String, category: Category) {
+        expenseDao.updateCategoryCascade(oldName, category)
     }
 
     // --- Budgets Write Ops ---
@@ -201,7 +209,7 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
 
     // --- Update User (for profile editing) ---
     suspend fun updateUser(user: User) {
-        expenseDao.insertUser(user)
+        expenseDao.updateUser(user)
     }
 
     /**
@@ -218,5 +226,9 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
     // --- Onboarding Reset ---
     suspend fun clearAllData() {
         expenseDao.clearAllData()
+    }
+
+    suspend fun restoreDefaultWallets() {
+        expenseDao.restoreDefaultWallets()
     }
 }

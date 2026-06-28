@@ -28,6 +28,47 @@ object ExportEngine {
         return formatter.format(amount)
     }
 
+    private fun wrapText(text: String, paint: Paint, maxWidth: Float): List<String> {
+        val words = text.split(", ")
+        val lines = mutableListOf<String>()
+        var currentLine = ""
+        for (word in words) {
+            val testLine = if (currentLine.isEmpty()) word else "$currentLine, $word"
+            if (paint.measureText(testLine) <= maxWidth) {
+                currentLine = testLine
+            } else {
+                if (currentLine.isNotEmpty()) {
+                    lines.add(currentLine)
+                }
+                currentLine = word
+            }
+        }
+        if (currentLine.isNotEmpty()) {
+            lines.add(currentLine)
+        }
+        return lines
+    }
+
+    private fun truncateText(text: String, paint: Paint, maxWidth: Float): String {
+        if (paint.measureText(text) <= maxWidth) {
+            return text
+        }
+        val ellipsis = "..."
+        val ellipsisWidth = paint.measureText(ellipsis)
+        if (maxWidth <= ellipsisWidth) {
+            return if (text.isNotEmpty()) text.take(1) + ellipsis else ellipsis
+        }
+        var len = text.length
+        while (len > 0) {
+            val truncated = text.take(len) + ellipsis
+            if (paint.measureText(truncated) <= maxWidth) {
+                return truncated
+            }
+            len--
+        }
+        return ellipsis
+    }
+
     // ========================================================================
     // LIGHTWEIGHT XLSX WRITER (No Apache POI)
     // Generates valid .xlsx files using ZipOutputStream + OpenXML inline strings
@@ -383,7 +424,7 @@ object ExportEngine {
         // 1. TOTAL GROUP SPENDING KPI BLOCK (MOVED UP)
         // ==========================================
         checkPageBreak(65f)
-        val totalSpent = expenses.sumOf { it.amount }
+        val totalSpent = expenses.filter { it.category != "Settlement" }.sumOf { it.amount }
         canvas.drawRoundRect(25f, y, 570f, y + 60f, 15f, 15f, lightGrayPaint)
         canvas.drawText("TOTAL GROUP SPENDING", 40f, y + 25f, Paint(subTitlePaint).apply { isFakeBoldText = true; color = Color.GRAY; textSize = 9f })
         canvas.drawText("₹${formatAmount(totalSpent)}", 40f, y + 50f, Paint(titlePaint).apply { textSize = 20f; color = Color.parseColor("#1B2D4F") })
@@ -396,7 +437,7 @@ object ExportEngine {
         canvas.drawText("CATEGORY SPENDING BREAKDOWN", 25f, y, Paint(titlePaint).apply { textSize = 11f })
         y += 15f
 
-        val categoriesMap = expenses.groupBy { it.category }.mapValues { it.value.sumOf { it.amount } }
+        val categoriesMap = expenses.filter { it.category != "Settlement" }.groupBy { it.category }.mapValues { it.value.sumOf { it.amount } }
         if (categoriesMap.isNotEmpty()) {
             categoriesMap.forEach { (cat, amt) ->
                 checkPageBreak(18f)
@@ -421,15 +462,50 @@ object ExportEngine {
         y += 20f
 
         // ==========================================
+        // 2b. MEMBER SPENDING BREAKDOWN
+        // ==========================================
+        checkPageBreak(30f)
+        canvas.drawText("MEMBER SPENDING BREAKDOWN (PAID BY)", 25f, y, Paint(titlePaint).apply { textSize = 11f })
+        y += 15f
+
+        val memberSpentMap = expenses.filter { it.category != "Settlement" }
+            .groupBy { it.paidById }
+            .mapKeys { entry -> members.find { it.id == entry.key }?.name ?: "Unknown" }
+            .mapValues { it.value.sumOf { it.amount } }
+
+        if (memberSpentMap.isNotEmpty()) {
+            memberSpentMap.forEach { (name, amt) ->
+                checkPageBreak(18f)
+                val pct = if (totalSpent > 0.0) (amt / totalSpent).toFloat() else 0f
+                canvas.drawText(name, 25f, y + 10f, bodyPaint)
+
+                // Outer progress container track
+                canvas.drawRoundRect(180f, y + 2f, 450f, y + 10f, 4f, 4f, chartPaint)
+                // Filled progress bar representing percentage
+                val barWidth = 270f * pct
+                val barEnd = 180f + if (barWidth < 4f) 4f else barWidth
+                canvas.drawRoundRect(180f, y + 2f, barEnd, y + 10f, 4f, 4f, accentColorPaint)
+
+                canvas.drawText("${String.format(Locale.US, "%.1f", pct * 100f)}% (₹${formatAmount(amt)})", 460f, y + 10f, Paint(bodyPaint).apply { isFakeBoldText = true })
+                y += 18f
+            }
+        } else {
+            canvas.drawText("No member transaction records available.", 25f, y + 10f, subTitlePaint)
+            y += 18f
+        }
+
+        y += 20f
+
+        // ==========================================
         // 3. ITEMIZED TRANSACTION HISTORY (WITH WHO INVOLVES COLUMN)
         // ==========================================
         checkPageBreak(40f)
         canvas.drawText("ITEMIZED TRANSACTION HISTORY", 25f, y, Paint(titlePaint).apply { textSize = 11f })
         y += 15f
 
-        val colX = floatArrayOf(25f, 150f, 225f, 305f, 380f, 445f)
+        val colX = floatArrayOf(25f, 90f, 150f, 255f, 330f, 415f)
         canvas.drawRect(25f, y, 570f, y + 22f, primaryColorPaint)
-        canvas.drawText("Date", colX[0] + 5f, y + 15f, Paint(headerPaint).apply { textSize = 9f })
+        canvas.drawText("Date / Time", colX[0] + 5f, y + 15f, Paint(headerPaint).apply { textSize = 9f })
         canvas.drawText("Category", colX[1], y + 15f, headerPaint)
         canvas.drawText("Description", colX[2], y + 15f, headerPaint)
         canvas.drawText("Paid By", colX[3], y + 15f, headerPaint)
@@ -437,31 +513,46 @@ object ExportEngine {
         canvas.drawText("Who involves", colX[5], y + 15f, headerPaint)
         y += 22f
 
-        val listSdf = SimpleDateFormat("dd-MM-yyyy hh:mm a", Locale.US)
+        val dateSdf = SimpleDateFormat("dd-MM-yyyy", Locale.US)
+        val timeSdf = SimpleDateFormat("hh:mm a", Locale.US)
 
         expenses.forEachIndexed { index, exp ->
-            checkPageBreak(18f)
-
-            canvas.drawRect(25f, y, 570f, y + 18f, if (index % 2 == 0) rowPaint else altRowPaint)
-            canvas.drawLine(25f, y + 18f, 570f, y + 18f, cellBorderPaint)
-
-            val dateText = listSdf.format(Date(exp.date))
-            val categoryText = if (exp.category.length > 12) exp.category.take(10) + ".." else exp.category
-            val descText = if (exp.description.length > 15) exp.description.take(13) + ".." else exp.description
-            val payerName = members.find { it.id == exp.paidById }?.name ?: "Unknown"
-            val amtText = "₹${formatAmount(exp.amount)}"
             val involvedMembers = splits.filter { it.expenseId == exp.id }
                 .map { split -> members.find { it.id == split.userId }?.name ?: "Unknown" }
                 .joinToString(", ")
-            val involvedText = if (involvedMembers.length > 25) involvedMembers.take(23) + ".." else involvedMembers
+            val involvedLines = wrapText(involvedMembers, bodyPaint, 150f)
+            val rowHeight = (maxOf(2, involvedLines.size) * 12f).coerceAtLeast(24f)
 
-            canvas.drawText(dateText, colX[0] + 5f, y + 13f, bodyPaint)
-            canvas.drawText(categoryText, colX[1], y + 13f, bodyPaint)
-            canvas.drawText(descText, colX[2], y + 13f, bodyPaint)
-            canvas.drawText(payerName, colX[3], y + 13f, bodyPaint)
-            canvas.drawText(amtText, colX[4], y + 13f, Paint(bodyPaint).apply { isFakeBoldText = true })
-            canvas.drawText(involvedText, colX[5], y + 13f, bodyPaint)
-            y += 18f
+            checkPageBreak(rowHeight)
+
+            canvas.drawRect(25f, y, 570f, y + rowHeight, if (index % 2 == 0) rowPaint else altRowPaint)
+            canvas.drawLine(25f, y + rowHeight, 570f, y + rowHeight, cellBorderPaint)
+
+            val dateText = dateSdf.format(Date(exp.date))
+            val timeText = timeSdf.format(Date(exp.date))
+            val categoryText = truncateText(exp.category, bodyPaint, colX[2] - colX[1] - 5f)
+            val descText = truncateText(exp.description, bodyPaint, colX[3] - colX[2] - 5f)
+            val rawPayerName = members.find { it.id == exp.paidById }?.name ?: "Unknown"
+            val payerName = truncateText(rawPayerName, bodyPaint, colX[4] - colX[3] - 5f)
+            val amtText = "₹${formatAmount(exp.amount)}"
+
+            val textY = y + (rowHeight / 2f) + 3f
+
+            val dateY = y + (rowHeight - 20f) / 2f + 8f
+            val timeY = y + (rowHeight - 20f) / 2f + 18f
+            canvas.drawText(dateText, colX[0] + 5f, dateY, bodyPaint)
+            canvas.drawText(timeText, colX[0] + 5f, timeY, Paint(bodyPaint).apply { textSize = 7.5f; color = Color.GRAY })
+
+            canvas.drawText(categoryText, colX[1], textY, bodyPaint)
+            canvas.drawText(descText, colX[2], textY, bodyPaint)
+            canvas.drawText(payerName, colX[3], textY, bodyPaint)
+            canvas.drawText(amtText, colX[4], textY, Paint(bodyPaint).apply { isFakeBoldText = true })
+
+            val startInvolvedY = y + (rowHeight - (involvedLines.size * 12f)) / 2f + 9f
+            involvedLines.forEachIndexed { lineIndex, lineText ->
+                canvas.drawText(lineText, colX[5], startInvolvedY + (lineIndex * 12f), bodyPaint)
+            }
+            y += rowHeight
         }
 
         y += 20f
@@ -684,10 +775,11 @@ object ExportEngine {
             canvas.drawRect(25f, y, 570f, y + 18f, if (index % 2 == 0) rowPaint else altRowPaint)
             canvas.drawLine(25f, y + 18f, 570f, y + 18f, cellBorderPaint)
 
-            val dateText = listSdf.format(Date(exp.date))
-            val categoryText = if (exp.category.length > 15) exp.category.take(13) + ".." else exp.category
-            val descText = if (exp.description.length > 22) exp.description.take(20) + ".." else exp.description
-            val payerName = members.find { it.id == exp.paidById }?.name ?: "Unknown"
+            val dateText = truncateText(listSdf.format(Date(exp.date)), bodyPaint, colX[1] - colX[0] - 5f)
+            val categoryText = truncateText(exp.category, bodyPaint, colX[2] - colX[1] - 5f)
+            val descText = truncateText(exp.description, bodyPaint, colX[3] - colX[2] - 5f)
+            val rawPayerName = members.find { it.id == exp.paidById }?.name ?: "Unknown"
+            val payerName = truncateText(rawPayerName, bodyPaint, colX[4] - colX[3] - 5f)
             val amtText = "₹${formatAmount(exp.amount)}"
 
             canvas.drawText(dateText, colX[0] + 5f, y + 13f, bodyPaint)

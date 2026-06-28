@@ -80,6 +80,8 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.common.InputImage
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
@@ -352,7 +354,8 @@ fun ExpenseSplitterApp(
                     fontScale = fontScale,
                     onFontScaleChange = onFontScaleChange,
                     onNavigateToCategoryManager = { navController.navigate(Routes.CATEGORY_MANAGER) },
-                    onNavigateToSubscriptionManager = { navController.navigate(Routes.RECURRING_MANAGER) }
+                    onNavigateToSubscriptionManager = { navController.navigate(Routes.RECURRING_MANAGER) },
+                    onNavigateToBudgetManager = { navController.navigate(Routes.BUDGET_MANAGER) }
                 )
             }
             composable(Routes.CATEGORY_MANAGER) {
@@ -363,6 +366,12 @@ fun ExpenseSplitterApp(
             }
             composable(Routes.RECURRING_MANAGER) {
                 SubscriptionManagerScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable(Routes.BUDGET_MANAGER) {
+                BudgetManagerScreen(
                     viewModel = viewModel,
                     onBack = { navController.popBackStack() }
                 )
@@ -496,7 +505,7 @@ fun SpaceCard(
                         letterSpacing = 0.5.sp
                     )
                     Text(
-                        text = "₹${String.format(java.util.Locale.US, "%.2f", totalSpent)}",
+                        text = "₹${formatAmount(totalSpent)}",
                         color = MaterialTheme.colorScheme.primary,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Black
@@ -818,7 +827,7 @@ fun SpacesScreen(viewModel: ExpenseViewModel, onNavigateToAddExpense: () -> Unit
 
                     OutlinedTextField(
                         value = spaceName,
-                        onValueChange = { spaceName = it },
+                        onValueChange = { if (it.length <= 30) spaceName = it },
                         label = { Text("Space Name (e.g., Flatmates)") },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -833,7 +842,7 @@ fun SpacesScreen(viewModel: ExpenseViewModel, onNavigateToAddExpense: () -> Unit
 
                     OutlinedTextField(
                         value = spaceDesc,
-                        onValueChange = { spaceDesc = it },
+                        onValueChange = { if (it.length <= 100) spaceDesc = it },
                         label = { Text("Description") },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -848,7 +857,7 @@ fun SpacesScreen(viewModel: ExpenseViewModel, onNavigateToAddExpense: () -> Unit
                     OutlinedTextField(
                         value = memberNamesInput,
                         onValueChange = { memberNamesInput = it },
-                        label = { Text("Add Group Members (comma-separated, optional)") },
+                        label = { Text("Add Group Members (comma-separated)") },
                         placeholder = { Text("Rohan, Amit, Sunil") },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -881,7 +890,7 @@ fun SpacesScreen(viewModel: ExpenseViewModel, onNavigateToAddExpense: () -> Unit
                                     showCreateSpaceDialog = false
                                 }
                             },
-                            enabled = spaceName.isNotBlank(),
+                            enabled = spaceName.isNotBlank() && memberNamesInput.split(",").map { it.trim() }.any { it.isNotEmpty() },
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                             modifier = Modifier.testTag("submit_space_button")
                         ) {
@@ -919,7 +928,7 @@ fun SpacesScreen(viewModel: ExpenseViewModel, onNavigateToAddExpense: () -> Unit
 
                     OutlinedTextField(
                         value = spaceName,
-                        onValueChange = { spaceName = it },
+                        onValueChange = { if (it.length <= 30) spaceName = it },
                         label = { Text("Space Name") },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -934,7 +943,7 @@ fun SpacesScreen(viewModel: ExpenseViewModel, onNavigateToAddExpense: () -> Unit
 
                     OutlinedTextField(
                         value = spaceDesc,
-                        onValueChange = { spaceDesc = it },
+                        onValueChange = { if (it.length <= 100) spaceDesc = it },
                         label = { Text("Description") },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -1165,9 +1174,9 @@ fun SpaceDetailScreen(viewModel: ExpenseViewModel, onNavigateToAddExpense: () ->
                         fontWeight = FontWeight.Black,
                         letterSpacing = 1.sp
                     )
-                    val totalSpentValue = expenses.sumOf { it.amount }
+                    val totalSpentValue = expenses.filter { it.category != "Settlement" }.sumOf { it.amount }
                     Text(
-                        text = "₹${String.format(Locale.US, "%.2f", totalSpentValue)}",
+                        text = "₹${formatAmount(totalSpentValue)}",
                         color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Black
@@ -1245,7 +1254,7 @@ fun ExpensesOverTimeChart(
 
     // Sort chronologically
     val sortedExpenses = remember(expenses) {
-        expenses.sortedBy { it.date }
+        expenses.filter { it.category != "Settlement" }.sortedBy { it.date }
     }
 
     // Calculate cumulative sums
@@ -1524,7 +1533,8 @@ fun CategoryPieChart(
     if (expenses.isEmpty()) return
 
     val categoryTotals = remember(expenses) {
-        expenses.groupBy { it.category }
+        expenses.filter { it.category != "Settlement" }
+            .groupBy { it.category }
             .mapValues { entry -> entry.value.sumOf { it.amount } }
             .toList()
             .sortedByDescending { it.second }
@@ -1590,7 +1600,7 @@ fun CategoryPieChart(
                     // Center total label
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("Total", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("₹${String.format(Locale.US, "%.0f", total)}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("₹${formatAmount(total).split(".")[0]}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     }
                 }
 
@@ -1626,7 +1636,135 @@ fun CategoryPieChart(
                                 )
                             }
                             Text(
-                                text = "₹${String.format(Locale.US, "%.2f", amt)} (${String.format(Locale.US, "%.1f", pct)}%)",
+                                text = "₹${formatAmount(amt)} (${String.format(Locale.US, "%.1f", pct)}%)",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MemberSpendingPieChart(
+    expenses: List<Expense>,
+    members: List<User>,
+    modifier: Modifier = Modifier
+) {
+    if (expenses.isEmpty()) return
+
+    val memberTotals = remember(expenses, members) {
+        expenses.filter { it.category != "Settlement" }
+            .groupBy { it.paidById }
+            .map { (paidById, list) ->
+                val name = members.find { it.id == paidById }?.name ?: "Unknown"
+                name to list.sumOf { it.amount }
+            }
+            .filter { it.second > 0.0 }
+            .sortedByDescending { it.second }
+    }
+
+    val total = memberTotals.sumOf { it.second }
+    if (total <= 0.0) return
+
+    val pieColors = listOf(
+        Color(0xFF009688), // Teal
+        Color(0xFFFF5722), // Deep Orange
+        Color(0xFF4CAF50), // Green
+        Color(0xFF3F51B5), // Indigo
+        Color(0xFFE91E63), // Pink
+        Color(0xFFFFC107), // Amber
+        Color(0xFF9C27B0), // Purple
+        Color(0xFF03A9F4), // Light Blue
+        Color(0xFF607D8B)  // Blue Gray
+    )
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        shape = RoundedCornerShape(24.dp),
+        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)),
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(MaterialTheme.colorScheme.surface)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "EXPENSES BY MEMBER (PAID BY)",
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Donut Canvas
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.size(130.dp)
+                ) {
+                    Canvas(modifier = Modifier.size(110.dp)) {
+                        var startAngle = -90f
+                        memberTotals.forEachIndexed { index, (_, amount) ->
+                            val sweepAngle = (amount / total).toFloat() * 360f
+                            drawArc(
+                                color = pieColors[index % pieColors.size],
+                                startAngle = startAngle,
+                                sweepAngle = sweepAngle,
+                                useCenter = false,
+                                style = Stroke(width = 20.dp.toPx(), cap = StrokeCap.Butt)
+                            )
+                            startAngle += sweepAngle
+                        }
+                    }
+                    // Center total label
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Total", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("₹${formatAmount(total).split(".")[0]}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                // Legends
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    memberTotals.take(5).forEachIndexed { index, (name, amt) ->
+                        val pct = (amt / total) * 100.0
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .clip(CircleShape)
+                                        .background(pieColors[index % pieColors.size])
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = name,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Text(
+                                text = "₹${formatAmount(amt)} (${String.format(Locale.US, "%.1f", pct)}%)",
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1643,6 +1781,7 @@ fun CategoryPieChart(
 fun ExpenseRow(
     expense: Expense,
     members: List<User>,
+    involvedNames: List<String>,
     onDelete: () -> Unit,
     onEdit: () -> Unit
 ) {
@@ -1751,6 +1890,15 @@ fun ExpenseRow(
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                             fontSize = 11.sp
                         )
+                        if (expense.category != "Settlement" && involvedNames.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(3.dp))
+                            Text(
+                                text = "Involves: ${involvedNames.joinToString(", ")}",
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
                 }
 
@@ -1759,7 +1907,7 @@ fun ExpenseRow(
                     horizontalArrangement = Arrangement.End
                 ) {
                     Text(
-                        text = "₹${String.format(Locale.US, "%.2f", expense.amount)}",
+                        text = "₹${formatAmount(expense.amount)}",
                         color = if (expense.category == "Settlement") MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Black,
                         fontSize = 16.sp,
@@ -1867,6 +2015,7 @@ fun SpaceExpensesTab(expenses: List<Expense>, members: List<User>, viewModel: Ex
     val context = LocalContext.current
     val wallets by viewModel.allWallets.collectAsStateWithLifecycle(emptyList())
     val activeSpaceState by viewModel.activeSpace.collectAsStateWithLifecycle()
+    val splits by viewModel.activeSpaceSplits.collectAsStateWithLifecycle(emptyList())
 
     var sortBy by remember { mutableStateOf("Expense date") }
     var sortMenuExpanded by remember { mutableStateOf(false) }
@@ -2080,9 +2229,12 @@ fun SpaceExpensesTab(expenses: List<Expense>, members: List<User>, viewModel: Ex
                     }
                 }
                 items(groupExpenses) { expense ->
+                    val expenseSplits = splits.filter { it.expenseId == expense.id && it.amountOwed > 0.0 }
+                    val involvedNames = expenseSplits.mapNotNull { split -> members.find { it.id == split.userId }?.name }
                     ExpenseRow(
                         expense = expense,
                         members = members,
+                        involvedNames = involvedNames,
                         onDelete = { viewModel.deleteExpense(expense.id) },
                         onEdit = {
                             viewModel.startEditingExpense(expense)
@@ -2118,6 +2270,9 @@ fun SpaceBalancesTab(
     var summaryExpanded by remember { mutableStateOf(true) }
     var settleExpanded by remember { mutableStateOf(true) }
     var membersExpanded by remember { mutableStateOf(false) }
+
+    val scope = rememberCoroutineScope()
+    var isExporting by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
 
@@ -2194,74 +2349,26 @@ fun SpaceBalancesTab(
             onDismissRequest = { transactionToSettle = null },
             title = { Text("Confirm Settlement", fontWeight = FontWeight.Bold) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Record payment of ₹${formatAmount(activeTx.amount)} from ${activeTx.debtor.name} to ${activeTx.creditor.name}?")
-                    
-                    if (wallets.isNotEmpty()) {
-                        val currentSel = selectedWalletForSettle ?: wallets.first()
-                        LaunchedEffect(wallets) {
-                            if (selectedWalletForSettle == null) {
-                                selectedWalletForSettle = wallets.first()
-                            }
-                        }
-                        
-                        Box(modifier = Modifier.fillMaxWidth()) {
-                            OutlinedButton(
-                                onClick = { walletDropdownExpanded = true },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text("Wallet: ${currentSel.name} (₹${formatAmount(currentSel.balance)})")
-                                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
-                                }
-                            }
-                            
-                            DropdownMenu(
-                                expanded = walletDropdownExpanded,
-                                onDismissRequest = { walletDropdownExpanded = false }
-                            ) {
-                                wallets.forEach { w ->
-                                    DropdownMenuItem(
-                                        text = { Text("${w.name} (₹${formatAmount(w.balance)})") },
-                                        onClick = {
-                                            selectedWalletForSettle = w
-                                            walletDropdownExpanded = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    } else {
-                        Text(
-                            text = "No funding wallets configured. Please create a wallet under Profile -> Wallet Manager.",
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                }
+                Text("Record payment of ₹${formatAmount(activeTx.amount)} from ${activeTx.debtor.name} to ${activeTx.creditor.name}?")
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        val targetWallet = selectedWalletForSettle ?: wallets.firstOrNull()
+                        val targetWalletId = wallets.firstOrNull()?.id ?: 1L
                         val sId = spaceId
-                        if (targetWallet != null && sId != null) {
+                        if (sId != null) {
                             viewModel.settleDebt(
                                 spaceId = sId,
                                 debtorId = activeTx.debtor.id,
                                 creditorId = activeTx.creditor.id,
                                 amount = activeTx.amount,
-                                walletId = targetWallet.id,
+                                walletId = targetWalletId,
                                 context = context
                             )
                         }
                         transactionToSettle = null
                     },
-                    enabled = wallets.isNotEmpty(),
+                    enabled = true,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
                     Text("Confirm")
@@ -2273,6 +2380,24 @@ fun SpaceBalancesTab(
                 }
             }
         )
+    }
+
+    if (isExporting) {
+        Dialog(onDismissRequest = {}) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    CircularProgressIndicator()
+                    Text("Exporting report...", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
     }
 
     LazyColumn(
@@ -2289,6 +2414,11 @@ fun SpaceBalancesTab(
         // Relocated Category Pie Chart
         item {
             CategoryPieChart(expenses = expenses)
+        }
+
+        // Member Spending Pie Chart
+        item {
+            MemberSpendingPieChart(expenses = expenses, members = balances.map { it.user })
         }
 
         // Relocated Auditing & Export Engine
@@ -2344,22 +2474,29 @@ fun SpaceBalancesTab(
                                 onClick = {
                                     val currentSpaceObj = activeSpaceState
                                     if (currentSpaceObj != null) {
-                                        val excelFile = com.example.utils.ExportEngine.exportSpaceToExcel(
-                                            context = context,
-                                            spaceName = currentSpaceObj.name,
-                                            expenses = expenses,
-                                            members = members,
-                                            wallets = wallets,
-                                            balances = balances,
-                                            settlements = transactions
-                                        )
-                                        if (excelFile != null) {
-                                            shareFile(context, excelFile, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                                        } else {
-                                            Toast.makeText(context, "Failed to compile Excel sheet", Toast.LENGTH_SHORT).show()
+                                        isExporting = true
+                                        scope.launch {
+                                            val excelFile = withContext(Dispatchers.IO) {
+                                                com.example.utils.ExportEngine.exportSpaceToExcel(
+                                                    context = context,
+                                                    spaceName = currentSpaceObj.name,
+                                                    expenses = expenses,
+                                                    members = members,
+                                                    wallets = wallets,
+                                                    balances = balances,
+                                                    settlements = transactions
+                                                )
+                                            }
+                                            isExporting = false
+                                            if (excelFile != null) {
+                                                shareFile(context, excelFile, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                                            } else {
+                                                Toast.makeText(context, "Failed to compile Excel sheet", Toast.LENGTH_SHORT).show()
+                                            }
                                         }
                                     }
                                 },
+                                enabled = !isExporting,
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                                 shape = RoundedCornerShape(8.dp),
                                 modifier = Modifier.weight(1f).height(38.dp).testTag("export_space_excel")
@@ -2373,20 +2510,27 @@ fun SpaceBalancesTab(
                                 onClick = {
                                     val currentSpaceObj = activeSpaceState
                                     if (currentSpaceObj != null) {
-                                        val csvFile = com.example.utils.ExportEngine.exportSpaceToCSV(
-                                            context = context,
-                                            spaceName = currentSpaceObj.name,
-                                            expenses = expenses,
-                                            members = members,
-                                            wallets = wallets
-                                        )
-                                        if (csvFile != null) {
-                                            shareFile(context, csvFile, "text/csv")
-                                        } else {
-                                            Toast.makeText(context, "Failed to generate CSV", Toast.LENGTH_SHORT).show()
+                                        isExporting = true
+                                        scope.launch {
+                                            val csvFile = withContext(Dispatchers.IO) {
+                                                com.example.utils.ExportEngine.exportSpaceToCSV(
+                                                    context = context,
+                                                    spaceName = currentSpaceObj.name,
+                                                    expenses = expenses,
+                                                    members = members,
+                                                    wallets = wallets
+                                                )
+                                            }
+                                            isExporting = false
+                                            if (csvFile != null) {
+                                                shareFile(context, csvFile, "text/csv")
+                                            } else {
+                                                Toast.makeText(context, "Failed to generate CSV", Toast.LENGTH_SHORT).show()
+                                            }
                                         }
                                     }
                                 },
+                                enabled = !isExporting,
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                                 shape = RoundedCornerShape(8.dp),
                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
@@ -2406,23 +2550,30 @@ fun SpaceBalancesTab(
                                 onClick = {
                                     val currentSpaceObj = activeSpaceState
                                     if (currentSpaceObj != null) {
-                                        val pdfFile = com.example.utils.ExportEngine.generateSpaceReportPDF(
-                                            context = context,
-                                            spaceName = currentSpaceObj.name,
-                                            expenses = expenses,
-                                            members = members,
-                                            wallets = wallets,
-                                            balances = balances,
-                                            settlements = transactions,
-                                            splits = splits
-                                        )
-                                        if (pdfFile != null) {
-                                            shareFile(context, pdfFile, "application/pdf")
-                                        } else {
-                                            Toast.makeText(context, "Failed to generate PDF Report", Toast.LENGTH_SHORT).show()
+                                        isExporting = true
+                                        scope.launch {
+                                            val pdfFile = withContext(Dispatchers.IO) {
+                                                com.example.utils.ExportEngine.generateSpaceReportPDF(
+                                                    context = context,
+                                                    spaceName = currentSpaceObj.name,
+                                                    expenses = expenses,
+                                                    members = members,
+                                                    wallets = wallets,
+                                                    balances = balances,
+                                                    settlements = transactions,
+                                                    splits = splits
+                                                )
+                                            }
+                                            isExporting = false
+                                            if (pdfFile != null) {
+                                                shareFile(context, pdfFile, "application/pdf")
+                                            } else {
+                                                Toast.makeText(context, "Failed to generate PDF Report", Toast.LENGTH_SHORT).show()
+                                            }
                                         }
                                     }
                                 },
+                                enabled = !isExporting,
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                                 shape = RoundedCornerShape(8.dp),
                                 modifier = Modifier.weight(1f).height(38.dp).testTag("export_space_pdf")
@@ -2436,23 +2587,30 @@ fun SpaceBalancesTab(
                                 onClick = {
                                     val currentSpaceObj = activeSpaceState
                                     if (currentSpaceObj != null) {
-                                        val zipFile = com.example.utils.ExportEngine.exportSpacePackageZip(
-                                            context = context,
-                                            spaceName = currentSpaceObj.name,
-                                            expenses = expenses,
-                                            members = members,
-                                            wallets = wallets,
-                                            balances = balances,
-                                            settlements = transactions,
-                                            splits = splits
-                                        )
-                                        if (zipFile != null) {
-                                            shareFile(context, zipFile, "application/zip")
-                                        } else {
-                                            Toast.makeText(context, "Failed to generate ZIP Package", Toast.LENGTH_SHORT).show()
+                                        isExporting = true
+                                        scope.launch {
+                                            val zipFile = withContext(Dispatchers.IO) {
+                                                com.example.utils.ExportEngine.exportSpacePackageZip(
+                                                    context = context,
+                                                    spaceName = currentSpaceObj.name,
+                                                    expenses = expenses,
+                                                    members = members,
+                                                    wallets = wallets,
+                                                    balances = balances,
+                                                    settlements = transactions,
+                                                    splits = splits
+                                                )
+                                            }
+                                            isExporting = false
+                                            if (zipFile != null) {
+                                                shareFile(context, zipFile, "application/zip")
+                                            } else {
+                                                Toast.makeText(context, "Failed to generate ZIP Package", Toast.LENGTH_SHORT).show()
+                                            }
                                         }
                                     }
                                 },
+                                enabled = !isExporting,
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
                                 shape = RoundedCornerShape(8.dp),
                                 modifier = Modifier.weight(1f).height(38.dp).testTag("export_space_zip")
@@ -2514,7 +2672,7 @@ fun SpaceBalancesTab(
                                         fontSize = 14.sp
                                     )
                                     Text(
-                                        text = "Charged ₹${String.format(Locale.US, "%.2f", balance.totalOwed)}, Paid ₹${String.format(Locale.US, "%.2f", balance.totalPaid)}",
+                                        text = "Charged ₹${formatAmount(balance.totalOwed)}, Paid ₹${formatAmount(balance.totalPaid)}",
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                         fontSize = 11.sp
                                     )
@@ -2524,7 +2682,7 @@ fun SpaceBalancesTab(
                                 val isSettled = kotlin.math.abs(balance.netBalance) <= 0.01
                                 val sign = if (isSettled) "" else if (isOwed) "+" else "-"
                                 val color = if (isSettled) MaterialTheme.colorScheme.onSurfaceVariant else if (isOwed) Color(0xFF1B5E20) else Color(0xFFE57373)
-                                val displayText = if (isSettled) "Settled" else "${sign}₹${String.format(Locale.US, "%.2f", kotlin.math.abs(balance.netBalance))}"
+                                val displayText = if (isSettled) "Settled" else "${sign}₹${formatAmount(kotlin.math.abs(balance.netBalance))}"
                                 
                                 Text(
                                     text = displayText,
@@ -2616,7 +2774,7 @@ fun SpaceBalancesTab(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
                                         Text(
-                                            text = "₹${String.format(Locale.US, "%.2f", tx.amount)}",
+                                            text = "₹${formatAmount(tx.amount)}",
                                             color = MaterialTheme.colorScheme.onSurface,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 13.sp
@@ -4099,7 +4257,8 @@ fun ProfileScreen(
     fontScale: Float,
     onFontScaleChange: (Float) -> Unit,
     onNavigateToCategoryManager: () -> Unit,
-    onNavigateToSubscriptionManager: () -> Unit
+    onNavigateToSubscriptionManager: () -> Unit,
+    onNavigateToBudgetManager: () -> Unit
 ) {
     val activeUser by viewModel.currentUser.collectAsStateWithLifecycle()
     val allUsers by viewModel.allUsers.collectAsStateWithLifecycle()
@@ -4445,6 +4604,64 @@ fun ProfileScreen(
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = "Manage automated recurring expenses & bills",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = "Navigate",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+
+        // Settings Budget Planner Navigation Card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onNavigateToBudgetManager() }
+                    .testTag("manage_budgets_nav_button")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ShowChart,
+                                contentDescription = "Budgets",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column {
+                            Text(
+                                text = "Budget Planner",
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Set and track monthly limits for expense categories",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 12.sp
                             )
@@ -5197,13 +5414,12 @@ fun OnboardingScreen(
                     if (currentSlide < totalSlides - 1) {
                         currentSlide++
                     } else {
-                        if (userName.isNotBlank()) {
-                            focusManager.clearFocus()
-                            onUserCreated(userName.trim())
-                        }
+                        focusManager.clearFocus()
+                        val finalName = if (userName.isBlank()) "Me" else userName.trim()
+                        onUserCreated(finalName)
                     }
                 },
-                enabled = currentSlide < totalSlides - 1 || userName.isNotBlank(),
+                enabled = true,
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary,
@@ -5218,7 +5434,7 @@ fun OnboardingScreen(
                     text = if (currentSlide < totalSlides - 1) "Next" else "Finish & Create Workspace",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = if (currentSlide < totalSlides - 1 || userName.isNotBlank()) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onPrimary
                 )
             }
             Spacer(modifier = Modifier.height(12.dp))

@@ -16,6 +16,9 @@ interface ExpenseDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertUser(user: User): Long
 
+    @Update
+    suspend fun updateUser(user: User)
+
     @Delete
     suspend fun deleteUser(user: User)
 
@@ -28,6 +31,9 @@ interface ExpenseDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSpace(space: Space): Long
+
+    @Update
+    suspend fun updateSpace(space: Space)
 
     @Delete
     suspend fun deleteSpace(space: Space)
@@ -130,7 +136,28 @@ interface ExpenseDao {
     suspend fun insertCategory(category: Category): Long
 
     @Delete
-    suspend fun deleteCategory(category: Category)
+    suspend fun deleteCategoryOnly(category: Category)
+
+    @Query("SELECT * FROM categories")
+    suspend fun getAllCategoriesSync(): List<Category>
+
+    @Query("UPDATE expenses SET category = :newName WHERE category = :oldName")
+    suspend fun updateExpenseCategoryNames(oldName: String, newName: String)
+
+    @Query("UPDATE budgets SET categoryName = :newName WHERE categoryName = :oldName")
+    suspend fun updateBudgetCategoryNames(oldName: String, newName: String)
+
+    @Query("UPDATE subscriptions SET category = :newName WHERE category = :oldName")
+    suspend fun updateSubscriptionCategoryNames(oldName: String, newName: String)
+
+    @Query("UPDATE expenses SET category = 'General' WHERE category = :oldName")
+    suspend fun resetExpenseCategoryToGeneral(oldName: String)
+
+    @Query("UPDATE budgets SET categoryName = 'General' WHERE categoryName = :oldName")
+    suspend fun resetBudgetCategoryToGeneral(oldName: String)
+
+    @Query("UPDATE subscriptions SET category = 'General' WHERE category = :oldName")
+    suspend fun resetSubscriptionCategoryToGeneral(oldName: String)
 
     @Query("DELETE FROM budgets WHERE categoryName = :categoryName")
     suspend fun deleteBudgetsByCategoryName(categoryName: String)
@@ -212,6 +239,15 @@ interface ExpenseDao {
             insertExpenseSplitSync(split.copy(expenseId = expenseId))
         }
         return expenseId
+    }
+
+    @Transaction
+    suspend fun restoreDefaultWallets() {
+        if (getWalletCount() == 0) {
+            insertWallet(Wallet(name = "Cash Wallet", type = "Cash", balance = 5000.0))
+            insertWallet(Wallet(name = "Bank Account", type = "Bank", balance = 25000.0))
+            insertWallet(Wallet(name = "Credit Card", type = "Credit Card", balance = -2000.0))
+        }
     }
 
     @Transaction
@@ -373,26 +409,8 @@ interface ExpenseDao {
         splits: List<ExpenseSplit>,
         subscription: Subscription
     ) {
-        if (expense.walletId != null) {
-            val wallet = getWalletById(expense.walletId)
-                ?: throw IllegalStateException("Wallet not found")
-            if (wallet.type != "Credit Card" && wallet.balance < expense.amount) {
-                throw IllegalStateException("Insufficient balance in wallet")
-            }
-        }
-        val expenseId = insertExpenseWithSplits(expense, splits)
-        if (expense.walletId != null) {
-            val wallet = getWalletById(expense.walletId)
-                ?: throw IllegalStateException("Wallet not found")
-            val affected = if (wallet.type == "Credit Card") {
-                deductFromWalletNoCheck(expense.walletId, expense.amount)
-            } else {
-                deductFromWalletWithCheck(expense.walletId, expense.amount)
-            }
-            if (affected == 0) {
-                throw IllegalStateException("Insufficient balance in wallet")
-            }
-        }
+        // Bypass wallet balance verification and deduction as wallets are not exposed in the UI.
+        insertExpenseWithSplits(expense, splits)
         insertSubscription(subscription)
     }
 
@@ -404,10 +422,7 @@ interface ExpenseDao {
         amount: Double,
         walletId: Long
     ) {
-        val wallet = getWalletById(walletId) ?: throw IllegalStateException("Wallet not found")
-        if (wallet.type != "Credit Card" && wallet.balance < amount) {
-            throw IllegalStateException("Insufficient balance in wallet")
-        }
+        // Bypass wallet balance verification and deduction as wallets are not exposed in the UI.
         val expense = Expense(
             spaceId = spaceId,
             paidById = debtorId,
@@ -420,13 +435,37 @@ interface ExpenseDao {
             ExpenseSplit(expenseId = 0, userId = creditorId, amountOwed = amount)
         )
         insertExpenseWithSplits(expense, splits)
-        val affected = if (wallet.type == "Credit Card") {
-            deductFromWalletNoCheck(walletId, amount)
-        } else {
-            deductFromWalletWithCheck(walletId, amount)
+    }
+
+    @Transaction
+    suspend fun deleteCategoryCascade(category: Category) {
+        val allCats = getAllCategoriesSync()
+        val toReset = mutableSetOf(category.name)
+        val queue = mutableListOf(category.id)
+        while (queue.isNotEmpty()) {
+            val currentId = queue.removeAt(0)
+            val children = allCats.filter { it.parentId == currentId }
+            for (child in children) {
+                if (toReset.add(child.name)) {
+                    queue.add(child.id)
+                }
+            }
         }
-        if (affected == 0) {
-            throw IllegalStateException("Insufficient balance in wallet")
+        for (catName in toReset) {
+            resetExpenseCategoryToGeneral(catName)
+            resetBudgetCategoryToGeneral(catName)
+            resetSubscriptionCategoryToGeneral(catName)
+        }
+        deleteCategoryOnly(category)
+    }
+
+    @Transaction
+    suspend fun updateCategoryCascade(oldName: String, newCategory: Category) {
+        insertCategory(newCategory)
+        if (oldName != newCategory.name) {
+            updateExpenseCategoryNames(oldName, newCategory.name)
+            updateBudgetCategoryNames(oldName, newCategory.name)
+            updateSubscriptionCategoryNames(oldName, newCategory.name)
         }
     }
 }

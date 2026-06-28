@@ -438,7 +438,7 @@ fun SubscriptionManagerScreen(
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column {
                                     Text(text = sub.name, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                    Text(text = "Amount: ₹${String.format(Locale.US, "%.2f", sub.amount)} • ${sub.intervalType}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                                    Text(text = "Amount: ₹${formatAmount(sub.amount)} • ${sub.intervalType}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                                     Text(text = "Group: $spaceName", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                                     Text(text = "Next Run: $simpleDate", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                                 }

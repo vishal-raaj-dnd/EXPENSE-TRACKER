@@ -8,6 +8,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.json.Json
 import android.content.Context
 import android.widget.Toast
@@ -203,13 +204,21 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
         activeSpaceSplits
     ) { members, expenses, splits ->
         members.map { member ->
-            val paidByMember = expenses.filter { it.paidById == member.id }.sumOf { it.amount }
-            val owedByMember = splits.filter { it.userId == member.id }.sumOf { it.amountOwed }
+            val paidByMember = expenses.filter { it.paidById == member.id && it.category != "Settlement" }.sumOf { it.amount }
+            val owedByMember = splits.filter { it.userId == member.id && it.expenseId in expenses.filter { e -> e.category != "Settlement" }.map { e -> e.id } }.sumOf { it.amountOwed }
+            
+            // Total settlements paid by this member as debtor
+            val settlementsPaid = expenses.filter { it.paidById == member.id && it.category == "Settlement" }.sumOf { it.amount }
+            // Total settlements received by this member as creditor
+            val settlementsReceived = splits.filter { it.userId == member.id && it.expenseId in expenses.filter { e -> e.category == "Settlement" }.map { e -> e.id } }.sumOf { it.amountOwed }
+
+            val netBalance = (paidByMember - owedByMember) + settlementsPaid - settlementsReceived
+
             MemberBalance(
                 user = member,
                 totalPaid = paidByMember,
                 totalOwed = owedByMember,
-                netBalance = paidByMember - owedByMember
+                netBalance = netBalance
             )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -337,7 +346,7 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
         viewModelScope.launch {
             val currentSpace = repository.getSpaceById(spaceId).first()
             if (currentSpace != null) {
-                repository.insertSpace(currentSpace.copy(name = name, description = description))
+                repository.updateSpace(currentSpace.copy(name = name, description = description))
             }
         }
     }
@@ -539,6 +548,12 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
     fun deleteCategory(category: Category) {
         viewModelScope.launch {
             repository.deleteCategory(category)
+        }
+    }
+
+    fun updateCategory(oldName: String, category: Category) {
+        viewModelScope.launch {
+            repository.updateCategory(oldName, category)
         }
     }
 
@@ -784,39 +799,45 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
             repository.clearAllData()
         }
     }
+
+    fun restoreDefaultWallets() {
+        viewModelScope.launch {
+            repository.restoreDefaultWallets()
+        }
+    }
 }
 
 @Serializable
 data class SharedSpacePayload(
-    val spaceName: String,
-    val spaceDescription: String,
-    val spaceCreatedAt: Long,
-    val members: List<SharedUser>,
-    val expenses: List<SharedExpense>,
-    val isTruncated: Boolean = false
+    @SerialName("sn") val spaceName: String,
+    @SerialName("sd") val spaceDescription: String,
+    @SerialName("sc") val spaceCreatedAt: Long,
+    @SerialName("m") val members: List<SharedUser>,
+    @SerialName("e") val expenses: List<SharedExpense>,
+    @SerialName("it") val isTruncated: Boolean = false
 )
 
 @Serializable
 data class SharedUser(
-    val name: String,
-    val email: String,
-    val avatarUrl: String = ""
+    @SerialName("n") val name: String,
+    @SerialName("e") val email: String,
+    @SerialName("a") val avatarUrl: String = ""
 )
 
 @Serializable
 data class SharedExpense(
-    val description: String,
-    val amount: Double,
-    val date: Long,
-    val category: String,
-    val paidByUserEmail: String,
-    val splits: List<SharedSplit>
+    @SerialName("d") val description: String,
+    @SerialName("a") val amount: Double,
+    @SerialName("t") val date: Long,
+    @SerialName("c") val category: String,
+    @SerialName("p") val paidByUserEmail: String,
+    @SerialName("s") val splits: List<SharedSplit>
 )
 
 @Serializable
 data class SharedSplit(
-    val userEmail: String,
-    val amountOwed: Double
+    @SerialName("u") val userEmail: String,
+    @SerialName("o") val amountOwed: Double
 )
 
 data class AppInitState(

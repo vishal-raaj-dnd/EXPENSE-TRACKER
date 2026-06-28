@@ -135,7 +135,7 @@ fun CategoryManagerScreen(
                         // 1. Category name textfield
                         OutlinedTextField(
                             value = categoryName,
-                            onValueChange = { categoryName = it },
+                            onValueChange = { if (it.length <= 20) categoryName = it },
                             label = { Text("Category Name (e.g., Groceries)") },
                             modifier = Modifier
                                 .fillMaxWidth()
