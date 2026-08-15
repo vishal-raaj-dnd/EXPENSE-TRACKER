@@ -26,6 +26,19 @@ fix_all_colors*.ps1
 # Keystore files
 *.keystore
 *.keystore.base64
+*.jks
+
+# Binaries and APKs
+*.apk
+*.aab
+pulled_app.apk
+required_apk
+
+# Temporary decompiled files and logs
+jadx/
+jadx.zip
+decompiled_sources/
+hs_err_pid*.log
 
 # IDE
 .idea/
@@ -36,3 +49,4 @@ fix_all_colors*.ps1
 .env.example
 metadata.json
 fix_colors_main.ps1
+

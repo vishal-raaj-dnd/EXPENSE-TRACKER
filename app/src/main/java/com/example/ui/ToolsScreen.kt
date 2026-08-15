@@ -42,7 +42,7 @@ fun ToolsScreen(
 ) {
     val context = LocalContext.current
     var selectedTab by remember { mutableStateOf(0) }
-    val tabTitles = listOf("EMI Loan", "Interest", "GST / Tax", "Cash Counter")
+    val tabTitles = listOf("EMI Loan", "Interest", "GST / Tax", "Cash Counter", "Backup & Restore")
 
     Column(
         modifier = Modifier
@@ -56,7 +56,11 @@ fun ToolsScreen(
                 .padding(horizontal = 20.dp, vertical = 16.dp)
         ) {
             Text(
-                text = if (selectedTab == 3) "Cash & Online Counter" else "Ledger Audit Utilities",
+                text = when (selectedTab) {
+                    3 -> "Cash & Online Counter"
+                    4 -> "Data Backup & Restore"
+                    else -> "Ledger Audit Utilities"
+                },
                 color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Black,
@@ -64,10 +68,10 @@ fun ToolsScreen(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = if (selectedTab == 3) {
-                    "Count physical currency denominations and track digital online wallet balances dynamically."
-                } else {
-                    "Natively styled calculation engines for EMI, Interest dynamic yields, and precise tax breakdowns."
+                text = when (selectedTab) {
+                    3 -> "Count physical currency denominations and track digital online wallet balances dynamically."
+                    4 -> "Full offline export and import of application database records and receipt attachments."
+                    else -> "Natively styled calculation engines for EMI, Interest dynamic yields, and precise tax breakdowns."
                 },
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 fontSize = 12.sp,
@@ -120,10 +124,12 @@ fun ToolsScreen(
                 1 -> InterestCalculatorPanel(viewModel, onNavigateToAddExpense)
                 2 -> GstCalculatorPanel(viewModel, onNavigateToAddExpense)
                 3 -> CashCalculatorPanel()
+                4 -> BackupRestoreCard(viewModel = viewModel)
             }
         }
     }
 }
+
 
 @Composable
 fun EmiCalculatorPanel(

@@ -4675,8 +4675,14 @@ fun ProfileScreen(
                 }
             }
         }
+
+        // Full App Data Backup & Restore Card
+        item {
+            BackupRestoreCard(viewModel = viewModel)
+        }
     }
 }
+
 
 // --- PEER-TO-PEER QR SHARING CODEC HELPERS ---
 val sharingJson = Json {

@@ -468,4 +468,63 @@ interface ExpenseDao {
             updateSubscriptionCategoryNames(oldName, newCategory.name)
         }
     }
+
+    // --- Backup & Restore Queries ---
+    @Query("SELECT * FROM users")
+    suspend fun getAllUsersSync(): List<User>
+
+    @Query("SELECT * FROM spaces")
+    suspend fun getAllSpacesSync(): List<Space>
+
+    @Query("SELECT * FROM space_members")
+    suspend fun getAllSpaceMembersSync(): List<SpaceMember>
+
+    @Query("SELECT * FROM expenses")
+    suspend fun getAllExpensesSync(): List<Expense>
+
+    @Query("SELECT * FROM wallets")
+    suspend fun getAllWalletsSync(): List<Wallet>
+
+    @Query("SELECT * FROM expense_splits")
+    suspend fun getAllExpenseSplitsSync(): List<ExpenseSplit>
+
+    @Query("SELECT * FROM budgets")
+    suspend fun getAllBudgetsSync(): List<Budget>
+
+    @Query("SELECT * FROM subscriptions")
+    suspend fun getAllSubscriptionsSync(): List<Subscription>
+
+    @Transaction
+    suspend fun restoreFullDatabase(
+        users: List<User>,
+        spaces: List<Space>,
+        spaceMembers: List<SpaceMember>,
+        wallets: List<Wallet>,
+        categories: List<Category>,
+        expenses: List<Expense>,
+        expenseSplits: List<ExpenseSplit>,
+        budgets: List<Budget>,
+        subscriptions: List<Subscription>
+    ) {
+        deleteAllExpenseSplits()
+        deleteAllExpenses()
+        deleteAllSpaceMembers()
+        deleteAllSubscriptions()
+        deleteAllSpaces()
+        deleteAllBudgets()
+        deleteAllCategories()
+        deleteAllUsers()
+        deleteAllWallets()
+
+        for (user in users) insertUser(user)
+        for (space in spaces) insertSpace(space)
+        for (sm in spaceMembers) insertSpaceMember(sm)
+        for (wallet in wallets) insertWallet(wallet)
+        for (category in categories) insertCategory(category)
+        for (expense in expenses) insertExpense(expense)
+        for (split in expenseSplits) insertExpenseSplitSync(split)
+        for (budget in budgets) insertBudget(budget)
+        for (subscription in subscriptions) insertSubscription(subscription)
+    }
 }
+

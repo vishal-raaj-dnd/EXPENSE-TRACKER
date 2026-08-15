@@ -231,4 +231,32 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
     suspend fun restoreDefaultWallets() {
         expenseDao.restoreDefaultWallets()
     }
+
+    // --- Full Backup & Restore Operations ---
+    suspend fun getAllUsersSync(): List<User> = expenseDao.getAllUsersSync()
+    suspend fun getAllSpacesSync(): List<Space> = expenseDao.getAllSpacesSync()
+    suspend fun getAllSpaceMembersSync(): List<SpaceMember> = expenseDao.getAllSpaceMembersSync()
+    suspend fun getAllExpensesSync(): List<Expense> = expenseDao.getAllExpensesSync()
+    suspend fun getAllWalletsSync(): List<Wallet> = expenseDao.getAllWalletsSync()
+    suspend fun getAllCategoriesSync(): List<Category> = expenseDao.getAllCategoriesSync()
+    suspend fun getAllExpenseSplitsSync(): List<ExpenseSplit> = expenseDao.getAllExpenseSplitsSync()
+    suspend fun getAllBudgetsSync(): List<Budget> = expenseDao.getAllBudgetsSync()
+    suspend fun getAllSubscriptionsSync(): List<Subscription> = expenseDao.getAllSubscriptionsSync()
+
+    suspend fun restoreFullDatabase(
+        users: List<User>,
+        spaces: List<Space>,
+        spaceMembers: List<SpaceMember>,
+        wallets: List<Wallet>,
+        categories: List<Category>,
+        expenses: List<Expense>,
+        expenseSplits: List<ExpenseSplit>,
+        budgets: List<Budget>,
+        subscriptions: List<Subscription>
+    ) {
+        expenseDao.restoreFullDatabase(
+            users, spaces, spaceMembers, wallets, categories, expenses, expenseSplits, budgets, subscriptions
+        )
+    }
 }
+

@@ -805,7 +805,34 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
             repository.restoreDefaultWallets()
         }
     }
+
+    fun createFullBackup(
+        context: Context,
+        outputUri: android.net.Uri,
+        onResult: (Result<Int>) -> Unit
+    ) {
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                com.example.utils.BackupEngine.createFullBackupZip(context, repository, outputUri)
+            }
+            onResult(result)
+        }
+    }
+
+    fun restoreFullBackup(
+        context: Context,
+        inputUri: android.net.Uri,
+        onResult: (Result<Int>) -> Unit
+    ) {
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                com.example.utils.BackupEngine.restoreFullBackupZip(context, repository, inputUri)
+            }
+            onResult(result)
+        }
+    }
 }
+
 
 @Serializable
 data class SharedSpacePayload(
